@@ -13,6 +13,7 @@ create or replace function client_id_generate()
 $$ language plpgsql;
 
 
+drop table if exists api_clients;
 create table if not exists api_clients(
     client_id uuid not null default client_id_generate() primary key,
     client_id_issued_at timestamptz default current_timestamp,
@@ -24,12 +25,12 @@ create table if not exists api_clients(
         ('none', 'client_secret_post', 'client_secret_basic'),
     grant_types text[] check grant_types in
         ('authorization_code', 'implicit', 'password', 'client_credentials',
-         'refresh_token', 'difi'), -- latter == custom
+         'refresh_token', 'difi'), -- latter == custom, check wont work on array as is
     response_types text check response_types in ('code', 'token'),
     client_name text unique,
     client_uri text unique,
     logo_uri text unique,
-    scope text[], -- array_unique, (from client) space separated list, need defaults and references
+    scopes text[],
     contacts text[], -- array_unique
     tos_uri text,
     policy_uri text, -- default
@@ -37,12 +38,25 @@ create table if not exists api_clients(
     software_id uuid unique,
     software_version text,
     -- custom params
-    is_active boolean default 't',
+    is_active boolean default 't', --default to true?
     authorized_tentants text[]  -- array_unique, all, pnum
     -- and then others for dynamic registration protocol?
 );
+
+comment on column api_clients.client_id is
+    '';
+comment on column api_clients.scopes is
+    'The OAuth2.0 standard does not specify defaults for scopes:
+     https://oauth.net/2/scope/ . It is up to the authorization server
+     to decide whether to store any scopes explicitly on a per client
+     basis';
+
 -- trigger
 -- validate_input: on insert or update, which calls
+    -- token_endpoint_auth_method
+        -- if none then grant_types, _only_: client_credentials
+        -- if client_secret_basic, one of the others
+    -- grant_types in verified list
     -- redirect_uris
     -- client_uri
     -- logo_uri
@@ -51,18 +65,35 @@ create table if not exists api_clients(
     -- policy_uri
 
 -- client api:
--- api_client_create
--- api_client_tenant_authorize
+create or replace function api_client_create(redirect_uris text[],
+                                             token_endpoint_auth_method text,
+                                             client_name text,
+                                             grant_types text,
+                                             logo_uri text,
+                                             contacts text[],
+                                             tos_uri text,
+                                             policy_uri text,
+                                             jwks_uri text,
+                                             software_id text,
+                                             software_version text  )
+    returns json as $$
+    declare client_data json;
+    begin
+        select json_agg('client_id', client_id) into client_data;
+        return client_data;
+    end;
+$$ language plpgsql;
+-- api_client_tenant_add
+-- api_client_tenant_remove
 
 
 -- need a way to transition existing clients to this, transparently :|
 -- today's table:
 
 /*
-client_id -> currently md5s
-api_key -> JWTs with expirations
+api_key -> ~ client_secrets JWTs with expirations (this is the tricky part)
 allowed_auth_modes -> grant_types (basic, tsd, difi)
-verified (and confirmed) -> would be the same
-projects_granted _. authorized_tentants
+verified (and confirmed) -> is_active
+projects_granted -> authorized_tentants
 email -> contact
 */
