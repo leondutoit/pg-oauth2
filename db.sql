@@ -30,7 +30,7 @@ create table if not exists api_clients(
     redirect_uris text[], -- array_unique
     token_endpoint_auth_method text not null check (token_endpoint_auth_method in
         ('none', 'client_secret_post', 'client_secret_basic')),
-    grant_types text[] not null,
+    grant_types text[] not null, -- need to support multiple types per client
     response_types text not null check (response_types in ('code', 'token', 'none')),
     client_name text not null unique,
     client_uri text unique,
@@ -135,10 +135,7 @@ insert into supported_grant_types values ('dataporten'); -- custom
 insert into supported_grant_types values ('elixir'); -- custom
 
 
--- client api:
--- provide defaults
 -- call with => named
-
 create or replace function api_client_create(_redirect_uris text[],
                                              _token_endpoint_auth_method text,
                                              _client_name text,
@@ -196,14 +193,16 @@ create or replace function api_client_create(_redirect_uris text[],
         return client_data;
     end;
 $$ language plpgsql;
+
+
+-- api_clients_grant_add
+-- api_clients_grant_remove
 -- api_client_tenant_add
 -- api_client_tenant_remove
 
 
--- need a way to transition existing clients to this, transparently :|
--- today's table:
-
 /*
+transition:
 api_key -> ~ client_secrets JWTs with expirations (this is the tricky part)
 allowed_auth_modes -> grant_types (basic, tsd, difi)
 verified (and confirmed) -> is_active
