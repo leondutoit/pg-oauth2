@@ -23,16 +23,16 @@ $$ language plpgsql;
 drop table if exists api_clients;
 create table if not exists api_clients(
     client_id text not null default client_id_generate() primary key,
-    client_id_issued_at timestamptz default current_timestamp,
+    client_id_issued_at timestamptz not null default current_timestamp,
     client_secret text not null default gen_random_uuid()::text, -- for backward compatibility
-    client_secret_expires_at timestamptz default current_timestamp + '5 years'
+    client_secret_expires_at timestamptz not null default current_timestamp + '5 years'
         check (client_secret_expires_at > client_id_issued_at),
     redirect_uris text[], -- array_unique
     token_endpoint_auth_method text not null check (token_endpoint_auth_method in
         ('none', 'client_secret_post', 'client_secret_basic')),
-    grant_types text[],
-    response_types text check (response_types in ('code', 'token', 'none')),
-    client_name text unique,
+    grant_types text[] not null,
+    response_types text not null check (response_types in ('code', 'token', 'none')),
+    client_name text not null unique,
     client_uri text unique,
     logo_uri text unique,
     scopes text[],
@@ -42,7 +42,7 @@ create table if not exists api_clients(
     jwks_uri text,
     software_id uuid unique,
     software_version text,
-    is_active boolean default 't',
+    is_active boolean not null default 't',
     authorized_tentants text[],  -- array_unique, all, pnum
     client_extra_metadata jsonb
     -- and then others for dynamic registration management protocol?
@@ -189,6 +189,7 @@ create or replace function api_client_create(_redirect_uris text[],
                                  _logo_uri, _contacts, _tos_uri, _policy_uri,
                                  _jwks_uri, _software_id::uuid, _software_version,
                                  _is_active, _authorized_tenants, _client_extra_metadata);
+        -- if public client do not return the client_secret
         select json_build_object('client_id', ac.client_id) from api_clients ac
             where ac.client_name = client_name
             into client_data;
