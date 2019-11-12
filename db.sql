@@ -180,12 +180,12 @@ create or replace function api_client_create(_redirect_uris text[],
             response_type := 'none';
         end if;
         insert into api_clients (redirect_uris, token_endpoint_auth_method,
-                                 grant_types, response_types,
+                                 client_name, grant_types, response_types,
                                  logo_uri, contacts, tos_uri, policy_uri,
                                  jwks_uri, software_id, software_version,
                                  is_active, authorized_tentants, client_extra_metadata)
                          values (_redirect_uris, _token_endpoint_auth_method,
-                                 array[_grant_type], response_type,
+                                 _client_name, array[_grant_type], response_type,
                                  _logo_uri, _contacts, _tos_uri, _policy_uri,
                                  _jwks_uri, _software_id::uuid, _software_version,
                                  _is_active, _authorized_tenants, _client_extra_metadata);
