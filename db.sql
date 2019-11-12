@@ -24,14 +24,14 @@ drop table if exists api_clients;
 create table if not exists api_clients(
     client_id text not null default client_id_generate() primary key,
     client_id_issued_at timestamptz default current_timestamp,
-    client_secret text not null default gen_random_uuid(),
+    client_secret text not null default gen_random_uuid()::text, -- for backward compatibility
     client_secret_expires_at timestamptz default current_timestamp + '5 years'
         check (client_secret_expires_at > client_id_issued_at),
     redirect_uris text[], -- array_unique
-    token_endpoint_auth_method text not null check token_endpoint_auth_method in
-        ('none', 'client_secret_post', 'client_secret_basic'),
+    token_endpoint_auth_method text not null check (token_endpoint_auth_method in
+        ('none', 'client_secret_post', 'client_secret_basic')),
     grant_types text[],
-    response_types text check response_types in ('code', 'token'),
+    response_types text check (response_types in ('code', 'token', 'none')),
     client_name text unique,
     client_uri text unique,
     logo_uri text unique,
@@ -43,64 +43,64 @@ create table if not exists api_clients(
     software_id uuid unique,
     software_version text,
     is_active boolean default 't',
-    authorized_tentants text[]  -- array_unique, all, pnum
+    authorized_tentants text[],  -- array_unique, all, pnum
     client_extra_metadata jsonb
     -- and then others for dynamic registration management protocol?
 );
 
 comment on column api_clients.client_id
-    is 'Unique opaque client identifier';
+is 'Unique opaque client identifier';
 comment on column api_clients.client_id_issued_at
-    is 'Timestamp when client identifier was issued';
+is 'Timestamp when client identifier was issued';
 comment on column api_clients.client_secret
-    is 'Secret for private clients';
+is 'Secret for private clients';
 comment on column api_clients.client_secret_expires_at
-    is 'Timestamp when client secret expires, after which the client
-        cannot use the API any longer';
+is 'Timestamp when client secret expires, after which the client
+cannot use the API any longer';
 comment on column api_clients.redirect_uris
-    is 'List of redirect URIs';
+is 'List of redirect URIs';
 comment on column api_clients.token_endpoint_auth_method
-    is 'Which type of _client_ authentication is used at the token endpoint';
+is 'Which type of _client_ authentication is used at the token endpoint';
 comment on column api_clients.grant_types
-    is 'A list of authorization grant types which the client is allowed to use';
+is 'A list of authorization grant types which the client is allowed to use';
 comment on column api_clients.response_types
-    is 'Either code or token, depending on the grant_type';
+is 'Either code or token, depending on the grant_type';
 comment on column api_clients.client_name
-    is 'Human readable client name';
+is 'Human readable client name';
 comment on column api_clients.client_uri
-    is 'URI containing information about the client';
+is 'URI containing information about the client';
 comment on column api_clients.logo_uri
-    is 'URI showing the client logo';
+is 'URI showing the client logo';
 comment on column api_clients.scopes
-    is 'The OAuth2.0 standard does not specify defaults for scopes:
-        https://oauth.net/2/scope/ . It is up to the authorization server
-        to decide whether to store any scopes explicitly on a per client
-        basis';
+is 'The OAuth2.0 standard does not specify defaults for scopes:
+https://oauth.net/2/scope/ . It is up to the authorization server
+to decide whether to store any scopes explicitly on a per client
+basis';
 comment on column api_clients.contacts
-    is 'Email address(es) of client admin';
+is 'Email address(es) of client admin';
 comment on column api_clients.tos_uri
-    is 'Pointer to contractual relationship between end-user and client,
-        that the end user accepts when authorizing the client';
+is 'Pointer to contractual relationship between end-user and client,
+that the end user accepts when authorizing the client';
 comment on column api_clients.policy_uri
-    is 'Pointer to a description of how deployment organisation that
-        owns the authorization server collects, uses, and retains
-        personal data';
+is 'Pointer to a description of how deployment organisation that
+owns the authorization server collects, uses, and retains
+personal data';
 comment on column api_clients.jwks_uri
-    is 'Reference to document containing the clients public keys';
+is 'Reference to document containing the clients public keys';
 comment on column api_clients.software_id
-    is 'Developer chosen UUID identifyingn the software of the client';
+is 'Developer chosen UUID identifyingn the software of the client';
 comment on column api_clients.software_version
-    is 'Developer chosen version number for the client software';
+is 'Developer chosen version number for the client software';
 comment on column api_clients.is_active
-    is 'Boolean flag for activation/deactivation of clients by API admins';
+is 'Boolean flag for activation/deactivation of clients by API admins';
 comment on column api_clients.authorized_tentants
-    is 'List of tenant identifiers specifying which API tenant the client
-        can access';
+is 'List of tenant identifiers specifying which API tenant the client
+can access';
 comment on column api_clients.client_extra_metadata
-    is 'Unstructured field for extensible client metadata';
+is 'Unstructured field for extensible client metadata';
 
 
-create or replace funcion validate_api_client_input()
+create or replace function validate_api_client_input()
     returns trigger as $$
     begin
     -- token_endpoint_auth_method
@@ -121,7 +121,7 @@ $$ language plpgsql;
 -- validate_input: on insert or update, which calls
 
 
-drop table if exists
+drop table if exists supported_grant_types;
 create table supported_grant_types(
     gtype text unique not null
 );
@@ -136,6 +136,9 @@ insert into supported_grant_types values ('elixir'); -- custom
 
 
 -- client api:
+-- provide defaults
+-- call with => named
+
 create or replace function api_client_create(_redirect_uris text[],
                                              _token_endpoint_auth_method text,
                                              _client_name text,
@@ -146,7 +149,10 @@ create or replace function api_client_create(_redirect_uris text[],
                                              _policy_uri text,
                                              _jwks_uri text,
                                              _software_id text,
-                                             _software_version text  )
+                                             _software_version text,
+                                             _is_active boolean,
+                                             _authorized_tenants text[],
+                                             _client_extra_metadata json)
     returns json as $$
     declare response_type text;
     declare client_data json;
@@ -174,10 +180,16 @@ create or replace function api_client_create(_redirect_uris text[],
             response_type := 'none';
         end if;
         insert into api_clients (redirect_uris, token_endpoint_auth_method,
-                                 grant_types, response_types)
+                                 grant_types, response_types,
+                                 logo_uri, contacts, tos_uri, policy_uri,
+                                 jwks_uri, software_id, software_version,
+                                 is_active, authorized_tentants, client_extra_metadata)
                          values (_redirect_uris, _token_endpoint_auth_method,
-                                 _grant_type, response_type);
-        select json_agg('client_id', ac.client_id) from api_clients ac
+                                 array[_grant_type], response_type,
+                                 _logo_uri, _contacts, _tos_uri, _policy_uri,
+                                 _jwks_uri, _software_id::uuid, _software_version,
+                                 _is_active, _authorized_tenants, _client_extra_metadata);
+        select json_build_object('client_id', ac.client_id) from api_clients ac
             where ac.client_name = client_name
             into client_data;
         return client_data;

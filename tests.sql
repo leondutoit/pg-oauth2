@@ -23,10 +23,21 @@ Host: server.example.com
 */
 
 -- public client
-select api_client_create('{"https://my-average-client.com"}',
+select api_client_create('{https://my-average-client.com}',
                          'none',
-                         'TheBestService');
+                         'TheBestService',
+                         'password',
+                         'https://logo.org',
+                         '{"leon@dutoit.com"}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         '2de1b97e-d32a-48a9-8a9f-cc0c29936afb',
+                         'v1',
+                         't',
+                         '{p11}',
+                         null);
 
 -- private client
-select api_client_create('{"https://my-amazing-client.com"}',
-                         'client_secret_basic');
+--select api_client_create('{"https://my-amazing-client.com"}',
+  --                       'client_secret_basic');
