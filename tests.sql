@@ -22,5 +22,11 @@ Host: server.example.com
 }
 */
 
+-- public client
+select api_client_create('{"https://my-average-client.com"}',
+                         'none',
+                         'TheBestService');
 
-select api_client_create();
+-- private client
+select api_client_create('{"https://my-amazing-client.com"}',
+                         'client_secret_basic');
