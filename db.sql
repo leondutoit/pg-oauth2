@@ -271,7 +271,8 @@ $$ language plpgsql;
 
 
 -- TODO: impl
--- api_client_grant_add
--- api_client_grant_remove
--- api_client_tenant_add
--- api_client_tenant_remove
+-- api_client_grant_add(client_id, grant_type)
+-- api_client_grant_remove(client_id, grant_type)
+-- api_client_tenant_add(client_id, tenant)
+-- api_client_tenant_remove(client_id, tenant)
+-- api_client_authnz(client_id, client_secret, grant_type)
