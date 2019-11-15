@@ -34,8 +34,7 @@ select api_client_create('{https://my-average-client.com}',
                          '2de1b97e-d32a-48a9-8a9f-cc0c29936afb',
                          'v1',
                          't',
-                         '{p11}',
-                         null);
+                         '{p11}');
 
 
 

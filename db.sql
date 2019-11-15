@@ -188,7 +188,7 @@ create or replace function api_client_create(redirect_uris text[],
                                              software_version text,
                                              is_active boolean,
                                              authorized_tenants text[],
-                                             client_extra_metadata json)
+                                             client_extra_metadata json default null)
     returns json as $$
     declare response_type text;
     declare client_data json;
