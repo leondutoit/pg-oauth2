@@ -10,6 +10,7 @@ OAuth2.0 API Client DB. Implementing RFC 7591 and RFC 7592:
 
 create extension pgcrypto;
 
+
 create or replace function client_id_generate()
     returns text as $$
     declare id text;
@@ -24,7 +25,7 @@ drop table if exists api_clients;
 create table if not exists api_clients(
     client_id text not null default client_id_generate() primary key,
     client_id_issued_at timestamptz not null default current_timestamp,
-    client_secret text,
+    client_secret text unique,
     client_secret_expires_at timestamptz,
     redirect_uris text[],
     token_endpoint_auth_method text not null check (token_endpoint_auth_method in
@@ -32,8 +33,8 @@ create table if not exists api_clients(
     grant_types text[] not null,
     response_types text not null check (response_types in ('code', 'token', 'none')),
     client_name text not null unique,
-    client_uri text unique,
-    logo_uri text unique,
+    client_uri text,
+    logo_uri text,
     scopes text[],
     contacts text[] not null,
     tos_uri text,
@@ -45,6 +46,7 @@ create table if not exists api_clients(
     authorized_tentants text[],
     client_extra_metadata jsonb
 );
+
 
 comment on column api_clients.client_id
 is 'Unique opaque client identifier';
@@ -98,31 +100,59 @@ comment on column api_clients.client_extra_metadata
 is 'Unstructured field for extensible client metadata';
 
 
+create or replace function new_arr_uniq(arr text[], name text)
+    returns void as $$
+    declare err text;
+    begin
+        if arr is not null then
+            err := 'duplicate ' || name;
+            assert (select cardinality(array(select distinct unnest(arr)))) =
+                   (select cardinality(arr)), err;
+        end if;
+    end;
+$$ language plpgsql;
+
+
 drop function if exists validate_api_client_input() cascade;
 create or replace function validate_api_client_input()
     returns trigger as $$
+    declare restriction text;
     begin
-        -- for both insert and update
-        -- array_unique
-            -- redirect_uris
-            -- grant_types
-            -- scopes
-            -- contacts
-            -- authorized_tentants
         -- validate uris
             -- client_uri
             -- logo_uri
             -- tos_uri
             -- policy_uri
-        -- if client_secret, check secret exp date > issued at date
+        perform new_arr_uniq(NEW.redirect_uris, 'redirect_uris');
+        perform new_arr_uniq(NEW.grant_types, 'grant_types');
+        perform new_arr_uniq(NEW.scopes, 'scopes');
+        perform new_arr_uniq(NEW.contacts, 'contacts');
+        perform new_arr_uniq(NEW.authorized_tentants, 'authorized_tentants');
+        restriction := 'public client are not allowed to have client secrets';
         if TG_OP = 'INSERT' then
-            null; -- maybe this is not necessary
+            if array['implicit'] <@ NEW.grant_types then
+                -- public client restrictions
+                assert NEW.client_secret is null, restriction;
+                assert NEW.client_secret_expires_at is null, restriction;
+            else
+                assert NEW.client_secret_expires_at > NEW.client_id_issued_at,
+                    'expiry before registration makes no sense';
+            end if;
         elsif TG_OP = 'UPDATE' then
-            -- immutable fields
-                -- client_id
-                -- client_id_issued_at
-            null;
-            -- ensure that if token_endpoint_auth_method = none, then grant_type is immutable
+            assert OLD.client_id = NEW.client_id, 'client_id is immutable';
+            assert OLD.client_id_issued_at = NEW.client_id_issued_at, 'client_id_issued_at is immutable';
+            if array['implicit'] <@ NEW.grant_types then
+                -- public client restrictions
+                assert OLD.token_endpoint_auth_method = NEW.token_endpoint_auth_method,
+                    'public clients cannot change token_endpoint_auth_method';
+                assert NEW.client_secret is null, restriction;
+                assert NEW.client_secret_expires_at is null, restriction;
+            else
+                if NEW.client_secret_expires_at is not null then
+                    assert NEW.client_secret_expires_at > OLD.client_id_issued_at,
+                        'expiry before registration makes no sense';
+                end if;
+            end if;
         end if;
         return new;
     end;
@@ -146,7 +176,6 @@ insert into supported_grant_types values ('elixir'); -- custom
 
 
 create or replace function api_client_create(redirect_uris text[],
-                                             token_endpoint_auth_method text,
                                              client_name text,
                                              grant_type text,
                                              logo_uri text,
@@ -165,6 +194,7 @@ create or replace function api_client_create(redirect_uris text[],
     declare secret text;
     declare secret_expiry timestamptz;
     declare new_name text;
+    declare token_endpoint_auth_method text;
     begin
         /*
 
@@ -182,10 +212,13 @@ create or replace function api_client_create(redirect_uris text[],
         assert grant_type in (select gtype from supported_grant_types), 'grant type not supported';
         secret := gen_random_uuid()::text;
         secret_expiry := current_timestamp + '5 years';
-        if token_endpoint_auth_method = 'none' then
-            assert grant_type = 'implicit', 'public clients can only use implicit flow';
+        if grant_type = 'implicit' then
+            token_endpoint_auth_method := 'none';
             secret := null;
             secret_expiry := null;
+        else
+            token_endpoint_auth_method := 'client_secret_basic';
+            -- ^ opinionated choice: do not want POST
         end if;
         if grant_type = 'authorization_code' then
             response_type := 'code';
