@@ -22,11 +22,14 @@ Host: server.example.com
 }
 */
 
+-- from python, create call_pg_func_named(func_name, params={})
+-- https://www.postgresql.org/docs/11/sql-syntax-calling-funcs.html
+
 -- public client
 select api_client_create('{https://my-average-client.com}',
                          'none',
                          'TheBestService',
-                         'password',
+                         'implicit',
                          'https://logo.org',
                          '{leon@dutoit.com}',
                          'https://tos.org',

@@ -24,28 +24,26 @@ drop table if exists api_clients;
 create table if not exists api_clients(
     client_id text not null default client_id_generate() primary key,
     client_id_issued_at timestamptz not null default current_timestamp,
-    client_secret text not null default gen_random_uuid()::text, -- for backward compatibility
-    client_secret_expires_at timestamptz not null default current_timestamp + '5 years'
-        check (client_secret_expires_at > client_id_issued_at),
-    redirect_uris text[], -- array_unique
+    client_secret text,
+    client_secret_expires_at timestamptz,
+    redirect_uris text[],
     token_endpoint_auth_method text not null check (token_endpoint_auth_method in
         ('none', 'client_secret_post', 'client_secret_basic')),
-    grant_types text[] not null, -- need to support multiple types per client
+    grant_types text[] not null,
     response_types text not null check (response_types in ('code', 'token', 'none')),
     client_name text not null unique,
     client_uri text unique,
     logo_uri text unique,
     scopes text[],
-    contacts text[], -- array_unique
+    contacts text[] not null,
     tos_uri text,
-    policy_uri text, -- needs a server specified default
+    policy_uri text,
     jwks_uri text,
     software_id uuid unique,
     software_version text,
     is_active boolean not null default 't',
-    authorized_tentants text[],  -- array_unique, all, pnum
+    authorized_tentants text[],
     client_extra_metadata jsonb
-    -- and then others for dynamic registration management protocol?
 );
 
 comment on column api_clients.client_id
@@ -100,25 +98,37 @@ comment on column api_clients.client_extra_metadata
 is 'Unstructured field for extensible client metadata';
 
 
+drop function if exists validate_api_client_input() cascade;
 create or replace function validate_api_client_input()
     returns trigger as $$
     begin
-    -- token_endpoint_auth_method
-        -- if none then grant_types, _only_: client_credentials
-        -- if client_secret_basic, one of the others
-    -- grant_types in
-        -- ('authorization_code', 'implicit', 'password', 'client_credentials', 'refresh_token', 'difi'),
-    -- redirect_uris
-    -- client_uri
-    -- logo_uri
-    -- contacts
-    -- tos_uri
-    -- policy_uri
+        -- for both insert and update
+        -- array_unique
+            -- redirect_uris
+            -- grant_types
+            -- scopes
+            -- contacts
+            -- authorized_tentants
+        -- validate uris
+            -- client_uri
+            -- logo_uri
+            -- tos_uri
+            -- policy_uri
+        -- if client_secret, check secret exp date > issued at date
+        if TG_OP = 'INSERT' then
+            null; -- maybe this is not necessary
+        elsif TG_OP = 'UPDATE' then
+            -- immutable fields
+                -- client_id
+                -- client_id_issued_at
+            null;
+            -- ensure that if token_endpoint_auth_method = none, then grant_type is immutable
+        end if;
         return new;
     end;
 $$ language plpgsql;
-
--- validate_input: on insert or update, which calls
+create trigger api_clients_input_validation before insert or update on api_clients
+    for each row execute procedure validate_api_client_input();
 
 
 drop table if exists supported_grant_types;
@@ -135,24 +145,26 @@ insert into supported_grant_types values ('dataporten'); -- custom
 insert into supported_grant_types values ('elixir'); -- custom
 
 
--- call with => named
-create or replace function api_client_create(_redirect_uris text[],
-                                             _token_endpoint_auth_method text,
-                                             _client_name text,
-                                             _grant_type text,
-                                             _logo_uri text,
-                                             _contacts text[],
-                                             _tos_uri text,
-                                             _policy_uri text,
-                                             _jwks_uri text,
-                                             _software_id text,
-                                             _software_version text,
-                                             _is_active boolean,
-                                             _authorized_tenants text[],
-                                             _client_extra_metadata json)
+create or replace function api_client_create(redirect_uris text[],
+                                             token_endpoint_auth_method text,
+                                             client_name text,
+                                             grant_type text,
+                                             logo_uri text,
+                                             contacts text[],
+                                             tos_uri text,
+                                             policy_uri text,
+                                             jwks_uri text,
+                                             software_id text,
+                                             software_version text,
+                                             is_active boolean,
+                                             authorized_tenants text[],
+                                             client_extra_metadata json)
     returns json as $$
     declare response_type text;
     declare client_data json;
+    declare secret text;
+    declare secret_expiry timestamptz;
+    declare new_name text;
     begin
         /*
 
@@ -167,28 +179,39 @@ create or replace function api_client_create(_redirect_uris text[],
         refresh_token       none (uses token endpoint)
 
         */
-        assert _grant_type in (select gtype from supported_grant_types),
-            'provided grant type not supported';
-        if _grant_type = 'authorization_code' then
+        assert grant_type in (select gtype from supported_grant_types), 'grant type not supported';
+        secret := gen_random_uuid()::text;
+        secret_expiry := current_timestamp + '5 years';
+        if token_endpoint_auth_method = 'none' then
+            assert grant_type = 'implicit', 'public clients can only use implicit flow';
+            secret := null;
+            secret_expiry := null;
+        end if;
+        if grant_type = 'authorization_code' then
             response_type := 'code';
-        elsif _grant_type = 'implicit' then
+        elsif grant_type = 'implicit' then
             response_type := 'token';
         else
             response_type := 'none';
         end if;
-        insert into api_clients (redirect_uris, token_endpoint_auth_method,
-                                 client_name, grant_types, response_types,
-                                 logo_uri, contacts, tos_uri, policy_uri,
-                                 jwks_uri, software_id, software_version,
-                                 is_active, authorized_tentants, client_extra_metadata)
-                         values (_redirect_uris, _token_endpoint_auth_method,
-                                 _client_name, array[_grant_type], response_type,
-                                 _logo_uri, _contacts, _tos_uri, _policy_uri,
-                                 _jwks_uri, _software_id::uuid, _software_version,
-                                 _is_active, _authorized_tenants, _client_extra_metadata);
-        -- if public client do not return the client_secret
-        select json_build_object('client_id', ac.client_id) from api_clients ac
-            where ac.client_name = client_name
+        new_name := client_name;
+        insert into api_clients
+            (client_secret, client_secret_expires_at,
+             redirect_uris, token_endpoint_auth_method,
+             client_name, grant_types, response_types,
+             logo_uri, contacts, tos_uri, policy_uri,
+             jwks_uri, software_id, software_version,
+             is_active, authorized_tentants, client_extra_metadata)
+        values
+            (secret, secret_expiry,
+             redirect_uris, token_endpoint_auth_method,
+             client_name, array[grant_type], response_type,
+             logo_uri, contacts, tos_uri, policy_uri,
+             jwks_uri, software_id::uuid, software_version,
+             is_active, authorized_tenants, client_extra_metadata);
+        select json_build_object(
+                'client_id', ac.client_id)
+            from api_clients ac where ac.client_name = new_name
             into client_data;
         return client_data;
     end;
