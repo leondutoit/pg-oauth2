@@ -28,8 +28,8 @@ create table if not exists api_clients(
     client_secret text unique,
     client_secret_expires_at timestamptz,
     redirect_uris text[],
-    token_endpoint_auth_method text not null check (token_endpoint_auth_method in
-        ('none', 'client_secret_post', 'client_secret_basic')),
+    token_endpoint_auth_method text not null
+        check (token_endpoint_auth_method in ('none', 'client_secret_post', 'client_secret_basic')),
     grant_types text[] not null,
     response_types text not null check (response_types in ('code', 'token', 'none')),
     client_name text not null unique,
@@ -118,6 +118,7 @@ create or replace function validate_api_client_input()
     returns trigger as $$
     declare restriction text;
     begin
+        -- TODO: impl
         -- validate uris
             -- client_uri
             -- logo_uri
@@ -216,14 +217,13 @@ create or replace function api_client_create(redirect_uris text[],
             token_endpoint_auth_method := 'none';
             secret := null;
             secret_expiry := null;
+            response_type := 'token';
         else
             token_endpoint_auth_method := 'client_secret_basic';
             -- ^ opinionated choice: do not want POST
         end if;
         if grant_type = 'authorization_code' then
             response_type := 'code';
-        elsif grant_type = 'implicit' then
-            response_type := 'token';
         else
             response_type := 'none';
         end if;
@@ -243,7 +243,26 @@ create or replace function api_client_create(redirect_uris text[],
              jwks_uri, software_id::uuid, software_version,
              is_active, authorized_tenants, client_extra_metadata);
         select json_build_object(
-                'client_id', ac.client_id)
+                'client_id', ac.client_id,
+                'client_id_issued_at', ac.client_id_issued_at,
+                'client_secret', ac.client_secret,
+                'client_secret_expires_at', ac.client_secret_expires_at,
+                'redirect_uris', ac.redirect_uris,
+                'token_endpoint_auth_method', ac.token_endpoint_auth_method,
+                'grant_types', ac.grant_types,
+                'response_types', ac.response_types,
+                'client_name', ac.client_name,
+                'client_uri', ac.client_uri,
+                'logo_uri', ac.logo_uri,
+                'scopes', ac.scopes,
+                'contacts', ac.contacts,
+                'tos_uri', ac.tos_uri,
+                'policy_uri', ac.policy_uri,
+                'jwks_uri', ac.jwks_uri,
+                'software_id', ac.software_id,
+                'software_version', ac.software_version,
+                'is_active', ac.is_active,
+                'authorized_tentants', ac.authorized_tentants)
             from api_clients ac where ac.client_name = new_name
             into client_data;
         return client_data;
@@ -251,17 +270,8 @@ create or replace function api_client_create(redirect_uris text[],
 $$ language plpgsql;
 
 
--- api_clients_grant_add
--- api_clients_grant_remove
+-- TODO: impl
+-- api_client_grant_add
+-- api_client_grant_remove
 -- api_client_tenant_add
 -- api_client_tenant_remove
-
-
-/*
-transition:
-api_key -> ~ client_secrets JWTs with expirations (this is the tricky part)
-allowed_auth_modes -> grant_types (basic, tsd, difi)
-verified (and confirmed) -> is_active
-projects_granted -> authorized_tentants
-email -> contact
-*/
