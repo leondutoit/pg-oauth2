@@ -100,7 +100,7 @@ comment on column api_clients.client_extra_metadata
 is 'Unstructured field for extensible client metadata';
 
 
-create or replace function new_arr_uniq(arr text[], name text)
+create or replace function assert_array_unique(arr text[], name text)
     returns void as $$
     declare err text;
     begin
@@ -124,11 +124,11 @@ create or replace function validate_api_client_input()
             -- logo_uri
             -- tos_uri
             -- policy_uri
-        perform new_arr_uniq(NEW.redirect_uris, 'redirect_uris');
-        perform new_arr_uniq(NEW.grant_types, 'grant_types');
-        perform new_arr_uniq(NEW.scopes, 'scopes');
-        perform new_arr_uniq(NEW.contacts, 'contacts');
-        perform new_arr_uniq(NEW.authorized_tentants, 'authorized_tentants');
+        perform assert_array_unique(NEW.redirect_uris, 'redirect_uris');
+        perform assert_array_unique(NEW.grant_types, 'grant_types');
+        perform assert_array_unique(NEW.scopes, 'scopes');
+        perform assert_array_unique(NEW.contacts, 'contacts');
+        perform assert_array_unique(NEW.authorized_tentants, 'authorized_tentants');
         restriction := 'public client are not allowed to have client secrets';
         if TG_OP = 'INSERT' then
             if array['implicit'] <@ NEW.grant_types then
@@ -275,4 +275,6 @@ $$ language plpgsql;
 -- api_client_grant_remove(client_id, grant_type)
 -- api_client_tenant_add(client_id, tenant)
 -- api_client_tenant_remove(client_id, tenant)
--- api_client_authnz(client_id, client_secret, grant_type)
+-- api_client_authnz(client_id, client_secret, tenant, grant_type, scope)
+    -- authn: check credentials
+    -- authz: check if tenant, grant_type and scope allowed
