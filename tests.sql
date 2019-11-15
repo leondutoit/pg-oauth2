@@ -22,12 +22,8 @@ Host: server.example.com
 }
 */
 
--- from python, create call_pg_func_named(func_name, params={})
--- https://www.postgresql.org/docs/11/sql-syntax-calling-funcs.html
-
 -- public client
 select api_client_create('{https://my-average-client.com}',
-                         'none',
                          'TheBestService',
                          'implicit',
                          'https://logo.org',
@@ -41,6 +37,29 @@ select api_client_create('{https://my-average-client.com}',
                          '{p11}',
                          null);
 
--- private client
---select api_client_create('{"https://my-amazing-client.com"}',
-  --                       'client_secret_basic');
+
+
+-- TODO
+-- only supported grant types
+-- for private clients
+    -- secret not null
+    -- default secret exprity 5y
+    -- expiry cannot be before registration, for insert and update
+    -- for grant types
+        -- authorization_code -> response_type code
+        -- password, client_credentials, and refresh -> none
+-- for public clients
+    -- no secret
+    -- no secret expiry
+    -- for implicit grant type (only one supported)
+        -- response type token
+    -- muist have redirect uri
+-- all arrays unique
+    -- redirect_uris
+    -- grant_types
+    -- scopes
+    -- contacts
+    -- authorized_tentants
+-- immutable columns
+    -- client_id
+    -- client_id_issued_at
