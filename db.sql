@@ -112,18 +112,43 @@ create or replace function assert_array_unique(arr text[], name text)
     end;
 $$ language plpgsql;
 
+-- configurable
+-- might want http for development purposes
+drop table if exists https_only;
+create table if not exists https_only(enabled boolean not null);
+insert into https_only values ('t');
+
+
+create or replace function assert_valid_url(arr text[])
+    returns void as $$
+    declare err text;
+    declare element text;
+    declare only_https boolean;
+    begin
+        select enabled from https_only limit 1 into only_https;
+        if arr is not null then
+            for element in select unnest(arr) loop
+                if element is not null then
+                    err := 'invalid url: ' || element;
+                    if only_https then
+                        assert element ~ 'https://.*', err;
+                    else
+                        assert element ~ '(https://.*|http://.*)', err;
+                    end if;
+                end if;
+            end loop;
+        end if;
+    end;
+$$ language plpgsql;
+
 
 drop function if exists validate_api_client_input() cascade;
 create or replace function validate_api_client_input()
     returns trigger as $$
     declare restriction text;
     begin
-        -- TODO: impl
-        -- validate uris
-            -- client_uri
-            -- logo_uri
-            -- tos_uri
-            -- policy_uri
+        perform assert_valid_url(NEW.redirect_uris);
+        perform assert_valid_url(array[NEW.client_uri, NEW.logo_uri, NEW.tos_uri, NEW.policy_uri]);
         perform assert_array_unique(NEW.redirect_uris, 'redirect_uris');
         perform assert_array_unique(NEW.grant_types, 'grant_types');
         perform assert_array_unique(NEW.scopes, 'scopes');

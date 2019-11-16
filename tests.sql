@@ -60,3 +60,4 @@ select api_client_create('{https://my-average-client.com}',
 -- immutable columns
     -- client_id
     -- client_id_issued_at
+-- url validation and http(s)
