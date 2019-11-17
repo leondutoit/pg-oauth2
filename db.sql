@@ -114,8 +114,7 @@ create or replace function assert_array_unique(arr text[], name text)
     end;
 $$ language plpgsql;
 
--- configurable
--- might want http for development purposes
+
 drop table if exists https_only;
 create table if not exists https_only(enabled boolean not null);
 insert into https_only values ('t');
@@ -144,11 +143,33 @@ create or replace function assert_valid_url(arr text[])
 $$ language plpgsql;
 
 
+drop table if exists supported_grant_types;
+create table supported_grant_types(
+    gtype text unique not null
+);
+insert into supported_grant_types values ('authorization_code');
+insert into supported_grant_types values ('implicit');
+insert into supported_grant_types values ('password');
+insert into supported_grant_types values ('client_credentials');
+insert into supported_grant_types values ('refresh_token');
+insert into supported_grant_types values ('difi'); -- custom
+insert into supported_grant_types values ('dataporten'); -- custom
+insert into supported_grant_types values ('elixir'); -- custom
+-- ^ move to config?
+
+
 drop function if exists validate_api_client_input() cascade;
 create or replace function validate_api_client_input()
     returns trigger as $$
     declare restriction text;
+    declare grant_type text;
     begin
+        for grant_type in select unnest(NEW.grant_types) loop
+            if grant_type is not null then
+                assert grant_type in (select gtype from supported_grant_types),
+                    'grant type not supported';
+            end if;
+        end loop;
         perform assert_valid_url(NEW.redirect_uris);
         perform assert_valid_url(array[NEW.client_uri, NEW.logo_uri, NEW.tos_uri, NEW.policy_uri]);
         perform assert_array_unique(NEW.redirect_uris, 'redirect_uris');
@@ -189,20 +210,6 @@ create trigger api_clients_input_validation before insert or update on api_clien
     for each row execute procedure validate_api_client_input();
 
 
-drop table if exists supported_grant_types;
-create table supported_grant_types(
-    gtype text unique not null
-);
-insert into supported_grant_types values ('authorization_code');
-insert into supported_grant_types values ('implicit');
-insert into supported_grant_types values ('password');
-insert into supported_grant_types values ('client_credentials');
-insert into supported_grant_types values ('refresh_token');
-insert into supported_grant_types values ('difi'); -- custom
-insert into supported_grant_types values ('dataporten'); -- custom
-insert into supported_grant_types values ('elixir'); -- custom
-
-
 create or replace function api_client_create(redirect_uris text[],
                                              client_name text,
                                              grant_type text,
@@ -237,7 +244,6 @@ create or replace function api_client_create(redirect_uris text[],
         refresh_token       none (uses token endpoint)
 
         */
-        assert grant_type in (select gtype from supported_grant_types), 'grant type not supported';
         secret := gen_random_uuid()::text;
         secret_expiry := current_timestamp + '5 years';
         if grant_type = 'implicit' then
