@@ -296,10 +296,17 @@ $$ language plpgsql;
 
 
 -- TODO: impl
--- api_client_grant_add(client_id, grant_type)
--- api_client_grant_remove(client_id, grant_type)
+-- array helpers
+-- api_client_grant_type_add(client_id, grant_type)
+-- api_client_grant_type_remove(client_id, grant_type)
 -- api_client_tenant_add(client_id, tenant)
 -- api_client_tenant_remove(client_id, tenant)
+-- redirect_uri_add remove
+-- scope_add, remove
+-- contact_add, remove
+-- authnz helpers
 -- api_client_authnz(client_id, client_secret, tenant, grant_type, scope)
     -- authn: check credentials
     -- authz: check if tenant, grant_type and scope allowed
+-- mgmt helpers
+-- api_client_expiry_modify(client_id, timestamptz)
