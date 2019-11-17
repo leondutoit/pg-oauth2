@@ -6,6 +6,8 @@ OAuth2.0 API Client DB. Implementing RFC 7591 and RFC 7592:
     - https://tools.ietf.org/html/rfc7591
     - https://tools.ietf.org/html/rfc7592
 
+With multi-tenancy.
+
 */
 
 create extension pgcrypto;
@@ -295,18 +297,55 @@ create or replace function api_client_create(redirect_uris text[],
 $$ language plpgsql;
 
 
--- TODO: impl
--- array helpers
--- api_client_grant_type_add(client_id, grant_type)
--- api_client_grant_type_remove(client_id, grant_type)
--- api_client_tenant_add(client_id, tenant)
--- api_client_tenant_remove(client_id, tenant)
--- redirect_uri_add remove
--- scope_add, remove
--- contact_add, remove
--- authnz helpers
--- api_client_authnz(client_id, client_secret, tenant, grant_type, scope)
-    -- authn: check credentials
-    -- authz: check if tenant, grant_type and scope allowed
--- mgmt helpers
--- api_client_expiry_modify(client_id, timestamptz)
+create or replace function api_client_grant_type_add(client_id text, grant_type text)
+    returns boolean as $$
+    begin
+        return true;
+    end;
+$$ language plpgsql;
+
+
+create or replace function api_client_grant_type_remove(client_id text, grant_type text)
+    returns boolean as $$
+    begin
+        return true;
+    end;
+$$ language plpgsql;
+
+
+create or replace function api_client_tenant_add(client_id text, grant_type text)
+    returns boolean as $$
+    begin
+        return true;
+    end;
+$$ language plpgsql;
+
+
+create or replace function api_client_tenant_remove(client_id text, grant_type text)
+    returns boolean as $$
+    begin
+        return true;
+    end;
+$$ language plpgsql;
+
+
+create or replace function api_client_expiry_modify(client_id text, expiry text)
+    returns boolean as $$
+    begin
+        return true;
+    end;
+$$ language plpgsql;
+
+
+create or replace function api_client_tenant_add(client_id text,
+                                                 client_secret text,
+                                                 tenant text,
+                                                 grant_type text,
+                                                 scope text)
+    returns boolean as $$
+    begin
+        -- authn: check credentials
+        -- authz: check if tenant, grant_type and scope allowed
+        return true;
+    end;
+$$ language plpgsql;
