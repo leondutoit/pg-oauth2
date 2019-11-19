@@ -50,7 +50,8 @@ select api_client_create('{https://my-average-client.com}',
     -- no secret expiry
     -- for implicit grant type (only one supported)
         -- response type token
-    -- muist have redirect uri
+    -- must have redirect uri
+    -- do not allow any other grant than implicit
 -- all arrays unique
     -- redirect_uris
     -- grant_types

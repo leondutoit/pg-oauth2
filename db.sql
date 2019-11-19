@@ -181,6 +181,7 @@ create or replace function validate_api_client_input()
         if TG_OP = 'INSERT' then
             if array['implicit'] <@ NEW.grant_types then
                 -- public client restrictions
+                assert NEW.grant_types = array['implicit'], 'public clients can only use implicit grant';
                 assert NEW.client_secret is null, restriction;
                 assert NEW.client_secret_expires_at is null, restriction;
             else
@@ -190,8 +191,9 @@ create or replace function validate_api_client_input()
         elsif TG_OP = 'UPDATE' then
             assert OLD.client_id = NEW.client_id, 'client_id is immutable';
             assert OLD.client_id_issued_at = NEW.client_id_issued_at, 'client_id_issued_at is immutable';
-            if array['implicit'] <@ NEW.grant_types then
+            if array['implicit'] = OLD.grant_types then
                 -- public client restrictions
+                assert NEW.grant_types = array['implicit'], 'public clients can only use implicit grant';
                 assert OLD.token_endpoint_auth_method = NEW.token_endpoint_auth_method,
                     'public clients cannot change token_endpoint_auth_method';
                 assert NEW.client_secret is null, restriction;
@@ -305,7 +307,12 @@ $$ language plpgsql;
 
 create or replace function api_client_grant_type_add(client_id text, grant_type text)
     returns boolean as $$
+    declare current text[];
+    declare new text[];
     begin
+        select grant_types from api_clients into current;
+        select array_append(current, grant_type) into new;
+        update api_clients set grant_types = new;
         return true;
     end;
 $$ language plpgsql;
