@@ -462,7 +462,7 @@ create or replace function api_client_authnz(client_id text,
         if (scope is not null and not array[scope] <@ scopes and status in (true, false)) then
             msg := 'authorization failed: scope';
             status := false;
-        elsif (scope is not null and array[scope] <@ scopes and status in (true, false)) then
+        elsif (scope is not null and array[scope] <@ scopes and status in (true, true)) then
             msg := 'authorization succesfull';
             status := true;
         end if;
