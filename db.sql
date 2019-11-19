@@ -383,29 +383,89 @@ create or replace function api_client_authnz(client_id text,
                                              tenant text,
                                              grant_type text,
                                              scope text)
-    returns boolean as $$
+    returns json as $$
     declare cid text;
     declare sec text;
     declare exp timestamptz;
     declare gtypes text[];
     declare scopes text[];
     declare tenants text[];
+    declare status boolean;
+    declare num int;
+    declare msg text;
     begin
+        /*
+        This function potentially vulnerable to timing attacks, even though it is
+        called over a network. For that reason all checks are always performed
+        regardless of whether any one of the previous checks have failed. This will
+        mitigate the possibility to generate systematically different timings based
+        on systematically wrong data provided by an attacker.
+
+        In the first if-elsif block, the status is always false, so we do not need to
+        check it. During subsequent if-elsif blocks, however, the status variable
+        can be either true (if a previous condition has been met) or false (if the
+        condition was not met).
+
+        In the first part of the if-elsif block, where the function checks whether
+        the requirment is met, an additional (but logically redundant) check is added
+        which asks if status in (true, false). This is there to ensure that the if and
+        ifelse checks take the same amount of time to execute, because in the second
+        part the function has to ensure that status is true - otherwise requirements
+        are not cumulatively enforced.
+
+        Implementors of functions which call this function are still advised to add
+        measures for ensuring constant time execution of their own functions, to
+        negate the effects of varying network latency e.g.
+        */
+        status := false;
         cid := quote_literal($1);
-        assert (select count(*) from api_clients
-                where api_clients.client_id = cid) = 1,
-               'client not found';
+        select count(*) from api_clients where api_clients.client_id = cid into num;
+        if num != 1 then
+            msg := 'client not found';
+            status := false;
+        elsif num = 1 then
+            msg := 'client found';
+            status := true;
+        end if;
         select ac.client_secret, ac.client_secret_expires_at,
                ac.grant_types, ac.scopes, ac.authorized_tentants
         from api_clients where ac.client_id = cid into
             sec, exp, gtypes, scopes, tenants;
-        assert sec = client_secret, 'authentication failed: wrong client secret';
-        assert exp > current_timestamp, 'authentication failed: client expired';
-        assert array[tenant] <@ tenants, 'authorization failed: tenant access ';
-        assert array[grant_type] <@ gtypes, 'authorization failed: grant type';
-        if scopes is not null then
-            assert array[scope] <@ scopes, 'authorization failed: scope';
+        if (sec != client_secret and status in (true, false)) then
+            msg := 'authentication failed: wrong client secret';
+            status := false;
+        elsif (sec = client_secret and status in (true, true)) then
+            msg := 'authentication succesfull';
+            status := true;
         end if;
-        return true;
+        if (exp < current_timestamp and status in (true, false)) then
+            msg := 'authentication failed: client expired';
+            status := false;
+        elsif (exp > current and status in (true, true)) then
+            msg := 'authentication succesfull';
+            status := true;
+        end if;
+        if (not array[tenant] <@ tenants and status in (true, false)) then
+            msg := 'authorization failed: tenant access ';
+            status := false;
+        elsif (array[tenant] <@ tenants and status in (true, true)) then
+            msg = 'authorization succesfull';
+            status := true;
+        end if;
+        if (not array[grant_type] <@ gtypes and status in (true, false)) then
+            msg := 'authorization failed: grant type';
+            status := false;
+        elsif (array[grant_type] <@ gtypes and status in (true, true)) then
+            msg = 'authorization succesfull';
+            status := true;
+        end if;
+        if (scope is not null and not array[scope] <@ scopes and status in (true, false)) then
+            msg := 'authorization failed: scope';
+            status := false;
+        elsif (scope is not null and array[scope] <@ scopes and status in (true, false)) then
+            msg := 'authorization succesfull';
+            status := true;
+        end if;
+        return json_build_object('status', true, 'message', msg);
     end;
 $$ language plpgsql;
