@@ -310,11 +310,12 @@ create or replace function api_client_grant_type_add(client_id text, grant_type 
     declare current text[];
     declare new text[];
     declare cid text;
+    declare num int;
     begin
-        cid := quote_literal($1);
-        assert (select count(*) from api_clients
-                where api_clients.client_id = cid) = 1,
-               'client not found';
+        cid := $1;
+        execute format('select ac.client_id from api_clients ac
+                        where ac.client_id = $1') using cid into num;
+        assert num = 1, 'client not found';
         select grant_types from api_clients where api_clients.client_id = cid into current;
         select array_append(current, grant_type) into new;
         update api_clients set grant_types = new where api_clients.client_id = cid;
@@ -327,11 +328,12 @@ create or replace function api_client_grant_type_remove(client_id text, grant_ty
     returns boolean as $$
     declare new text[];
     declare cid text;
+    declare num int;
     begin
-        cid := quote_literal($1);
-        assert (select count(*) from api_clients
-                where api_clients.client_id = cid) = 1,
-               'client not found';
+        cid := $1;
+        execute format('select ac.client_id from api_clients ac
+                        where ac.client_id = $1') using cid into num;
+        assert num = 1, 'client not found';
         select array_remove(grant_types, grant_type) from api_clients
             where api_clients.client_id = cid into new;
         if cardinality(new) = 0 then new := null; end if;
@@ -346,11 +348,12 @@ create or replace function api_client_tenant_add(client_id text, tenant text)
     declare current text[];
     declare new text[];
     declare cid text;
+    declare num int;
     begin
-        cid := quote_literal($1);
-        assert (select count(*) from api_clients
-                where api_clients.client_id = $1) = 1,
-               'client not found';
+        cid := $1;
+        execute format('select ac.client_id from api_clients ac
+                        where ac.client_id = $1') using cid into num;
+        assert num = 1, 'client not found';
         select authorized_tentants from api_clients where api_clients.client_id = $1 into current;
         select array_append(current, tenant) into new;
         update api_clients set authorized_tentants = new where api_clients.client_id = $1;
@@ -364,11 +367,12 @@ create or replace function api_client_tenant_remove(client_id text, tenant text)
     declare current text[];
     declare new text[];
     declare cid text;
+    declare num int;
     begin
-        cid := quote_literal($1);
-        assert (select count(*) from api_clients
-                where api_clients.client_id = cid) = 1,
-               'client not found';
+        cid := $1;
+        execute format('select ac.client_id from api_clients ac
+                        where ac.client_id = $1') using cid into num;
+        assert num = 1, 'client not found';
         select array_remove(authorized_tentants, tenant) from api_clients
             where api_clients.client_id = cid into new;
         if cardinality(new) = 0 then new := null; end if;
@@ -418,8 +422,9 @@ create or replace function api_client_authnz(client_id text,
         negate the effects of varying network latency e.g.
         */
         status := false;
-        cid := quote_literal($1);
-        select count(*) from api_clients where api_clients.client_id = cid into num;
+        cid := $1;
+        execute format('select count(*) from api_clients ac
+                        where ac.client_id = $1') using cid into num;
         if num != 1 then
             msg := 'client not found';
             status := false;
@@ -429,7 +434,7 @@ create or replace function api_client_authnz(client_id text,
         end if;
         select ac.client_secret, ac.client_secret_expires_at,
                ac.grant_types, ac.scopes, ac.authorized_tentants
-        from api_clients where ac.client_id = cid into
+        from api_clients ac where ac.client_id = cid into
             sec, exp, gtypes, scopes, tenants;
         if (sec != client_secret and status in (true, false)) then
             msg := 'authentication failed: wrong client secret';
@@ -441,7 +446,7 @@ create or replace function api_client_authnz(client_id text,
         if (exp < current_timestamp and status in (true, false)) then
             msg := 'authentication failed: client expired';
             status := false;
-        elsif (exp > current and status in (true, true)) then
+        elsif (exp > current_timestamp and status in (true, true)) then
             msg := 'authentication succesfull';
             status := true;
         end if;
