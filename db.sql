@@ -309,10 +309,15 @@ create or replace function api_client_grant_type_add(client_id text, grant_type 
     returns boolean as $$
     declare current text[];
     declare new text[];
+    declare cid text;
     begin
-        select grant_types from api_clients into current;
+        cid := quote_literal($1);
+        assert (select count(*) from api_clients
+                where api_clients.client_id = cid) = 1,
+               'client not found';
+        select grant_types from api_clients where api_clients.client_id = cid into current;
         select array_append(current, grant_type) into new;
-        update api_clients set grant_types = new;
+        update api_clients set grant_types = new where api_clients.client_id = cid;
         return true;
     end;
 $$ language plpgsql;
@@ -320,31 +325,54 @@ $$ language plpgsql;
 
 create or replace function api_client_grant_type_remove(client_id text, grant_type text)
     returns boolean as $$
+    declare new text[];
+    declare cid text;
     begin
+        cid := quote_literal($1);
+        assert (select count(*) from api_clients
+                where api_clients.client_id = cid) = 1,
+               'client not found';
+        select array_remove(grant_types, grant_type) from api_clients
+            where api_clients.client_id = cid into new;
+        if cardinality(new) = 0 then new := null; end if;
+        update api_clients set grant_types = new where api_clients.client_id = cid;
         return true;
     end;
 $$ language plpgsql;
 
 
-create or replace function api_client_tenant_add(client_id text, grant_type text)
+create or replace function api_client_tenant_add(client_id text, tenant text)
     returns boolean as $$
+    declare current text[];
+    declare new text[];
+    declare cid text;
     begin
+        cid := quote_literal($1);
+        assert (select count(*) from api_clients
+                where api_clients.client_id = $1) = 1,
+               'client not found';
+        select authorized_tentants from api_clients where api_clients.client_id = $1 into current;
+        select array_append(current, tenant) into new;
+        update api_clients set authorized_tentants = new where api_clients.client_id = $1;
         return true;
     end;
 $$ language plpgsql;
 
 
-create or replace function api_client_tenant_remove(client_id text, grant_type text)
+create or replace function api_client_tenant_remove(client_id text, tenant text)
     returns boolean as $$
+    declare current text[];
+    declare new text[];
+    declare cid text;
     begin
-        return true;
-    end;
-$$ language plpgsql;
-
-
-create or replace function api_client_expiry_modify(client_id text, expiry text)
-    returns boolean as $$
-    begin
+        cid := quote_literal($1);
+        assert (select count(*) from api_clients
+                where api_clients.client_id = cid) = 1,
+               'client not found';
+        select array_remove(authorized_tentants, tenant) from api_clients
+            where api_clients.client_id = cid into new;
+        if cardinality(new) = 0 then new := null; end if;
+        update api_clients set authorized_tentants = new where api_clients.client_id = cid;
         return true;
     end;
 $$ language plpgsql;
@@ -356,7 +384,12 @@ create or replace function api_client_tenant_add(client_id text,
                                                  grant_type text,
                                                  scope text)
     returns boolean as $$
+    declare cid text;
     begin
+        cid := quote_literal($1);
+        assert (select count(*) from api_clients
+                where api_clients.client_id = cid) = 1,
+               'client not found';
         -- authn: check credentials
         -- authz: check if tenant, grant_type and scope allowed
         return true;

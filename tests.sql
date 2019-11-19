@@ -62,3 +62,5 @@ select api_client_create('{https://my-average-client.com}',
     -- client_id
     -- client_id_issued_at
 -- url validation and http(s)
+-- array helpers
+-- client authentication
