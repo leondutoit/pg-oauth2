@@ -378,20 +378,34 @@ create or replace function api_client_tenant_remove(client_id text, tenant text)
 $$ language plpgsql;
 
 
-create or replace function api_client_tenant_add(client_id text,
-                                                 client_secret text,
-                                                 tenant text,
-                                                 grant_type text,
-                                                 scope text)
+create or replace function api_client_authnz(client_id text,
+                                             client_secret text,
+                                             tenant text,
+                                             grant_type text,
+                                             scope text)
     returns boolean as $$
     declare cid text;
+    declare sec text;
+    declare exp timestamptz;
+    declare gtypes text[];
+    declare scopes text[];
+    declare tenants text[];
     begin
         cid := quote_literal($1);
         assert (select count(*) from api_clients
                 where api_clients.client_id = cid) = 1,
                'client not found';
-        -- authn: check credentials
-        -- authz: check if tenant, grant_type and scope allowed
+        select ac.client_secret, ac.client_secret_expires_at,
+               ac.grant_types, ac.scopes, ac.authorized_tentants
+        from api_clients where ac.client_id = cid into
+            sec, exp, gtypes, scopes, tenants;
+        assert sec = client_secret, 'authentication failed: wrong client secret';
+        assert exp > current_timestamp, 'authentication failed: client expired';
+        assert array[tenant] <@ tenants, 'authorization failed: tenant access ';
+        assert array[grant_type] <@ gtypes, 'authorization failed: grant type';
+        if scopes is not null then
+            assert array[scope] <@ scopes, 'authorization failed: scope';
+        end if;
         return true;
     end;
 $$ language plpgsql;
