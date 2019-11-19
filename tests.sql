@@ -20,21 +20,6 @@ Host: server.example.com
 }
 */
 
--- public client
-select api_client_create('{https://my-average-client.com}',
-                         'TheBestService',
-                         'implicit',
-                         'https://logo.org',
-                         '{leon@dutoit.com}',
-                         'https://tos.org',
-                         'https://policy.org',
-                         'https://jwks.org',
-                         '2de1b97e-d32a-48a9-8a9f-cc0c29936afb',
-                         'v1',
-                         't',
-                         '{p11}');
-
-
 
 -- TODO
 -- only supported grant types
@@ -64,3 +49,39 @@ select api_client_create('{https://my-average-client.com}',
 -- url validation and http(s)
 -- array helpers
 -- client authentication
+delete from api_clients;
+create or replace function test_client_authnz()
+    returns boolean as $$
+    declare cid text;
+    declare cs text;
+    declare resp json;
+    declare status json;
+    begin
+        select api_client_create(
+                         '{https://my-average-client.com}',
+                         'TheBestService',
+                         'implicit',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         '2de1b97e-d32a-48a9-8a9f-cc0c29936afb',
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+        raise info '%', resp;
+        select client_id, client_secret from api_clients
+            where client_name = 'TheBestService' into cid, cs;
+        -- that it works
+        select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
+        raise info 'status: %', status;
+        -- that it fails safely
+        select api_client_authnz(';drop table api_clients;', cs, 'p11', 'implicit', null) into status;
+        raise info 'status: %', status;
+
+        return true;
+    end;
+$$ language plpgsql;
+
+select test_client_authnz();
