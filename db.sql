@@ -432,10 +432,10 @@ create or replace function api_client_authnz(client_id text,
             msg := 'client found';
             status := true;
         end if;
-        select ac.client_secret, ac.client_secret_expires_at,
-               ac.grant_types, ac.scopes, ac.authorized_tentants
-        from api_clients ac where ac.client_id = cid into
-            sec, exp, gtypes, scopes, tenants;
+        execute format('select ac.client_secret, ac.client_secret_expires_at,
+                        ac.grant_types, ac.scopes, ac.authorized_tentants
+                        from api_clients ac where ac.client_id = $1') using cid
+            into sec, exp, gtypes, scopes, tenants;
         if (sec != client_secret and status in (true, false)) then
             msg := 'authentication failed: wrong client secret';
             status := false;

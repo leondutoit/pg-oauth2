@@ -79,7 +79,6 @@ create or replace function test_client_authnz()
         -- that it fails safely
         select api_client_authnz(';drop table api_clients;', cs, 'p11', 'implicit', null) into status;
         raise info 'status: %', status;
-
         return true;
     end;
 $$ language plpgsql;
