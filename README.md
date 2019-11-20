@@ -3,7 +3,7 @@
 
 DB tools for implementing OAuth2.0 authorization servers.
 
-# Setup
+## Setup
 
 Set up the db, run the tests:
 ```bash
@@ -11,7 +11,7 @@ psql -U $DBOWNER -d $DBNAME -f db.sql
 psql -U $DBOWNER -d $DBNAME -f tests.sql
 ```
 
-# SQL API
+## SQL API
 
 The following convenience functions are supplied, in addition to the `api_clients` table:
 
@@ -45,6 +45,6 @@ api_client_authnz(client_id text,
 
 For the details of the `api_clients` table, do `\d+ api_clients` in the psql shell. For example usage of the SQL API see `tests.sql`.
 
-# License
+## License
 
 BSD.
