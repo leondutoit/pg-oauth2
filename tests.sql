@@ -76,8 +76,11 @@ create or replace function test_client_authnz()
         -- that it works
         select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
         raise info 'status: %', status;
-        -- that it fails safely
         select api_client_authnz(';drop table api_clients;', cs, 'p11', 'implicit', null) into status;
+        raise info 'status: %', status;
+        -- test that if client is inactive cannot authenticate
+        update api_clients set is_active = 'f';
+        select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
         raise info 'status: %', status;
         return true;
     end;

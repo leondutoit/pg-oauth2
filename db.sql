@@ -394,6 +394,7 @@ create or replace function api_client_authnz(client_id text,
     declare gtypes text[];
     declare scopes text[];
     declare tenants text[];
+    declare active boolean;
     declare status boolean;
     declare num int;
     declare msg text;
@@ -433,9 +434,16 @@ create or replace function api_client_authnz(client_id text,
             status := true;
         end if;
         execute format('select ac.client_secret, ac.client_secret_expires_at,
-                        ac.grant_types, ac.scopes, ac.authorized_tentants
+                        ac.grant_types, ac.scopes, ac.is_active, ac.authorized_tentants
                         from api_clients ac where ac.client_id = $1') using cid
-            into sec, exp, gtypes, scopes, tenants;
+            into sec, exp, gtypes, scopes, active, tenants;
+        if (active = 'f' and status in (true, false)) then
+            msg = 'client is inactive, contact an amdin for help';
+            status := false;
+        elsif (active = 't' and status in (true, false)) then
+            msg := 'client active';
+            status := true;
+        end if;
         if (sec != client_secret and status in (true, false)) then
             msg := 'authentication failed: wrong client secret';
             status := false;
@@ -471,6 +479,6 @@ create or replace function api_client_authnz(client_id text,
             msg := 'authorization succesfull';
             status := true;
         end if;
-        return json_build_object('status', true, 'message', msg);
+        return json_build_object('status', status, 'message', msg);
     end;
 $$ language plpgsql;
