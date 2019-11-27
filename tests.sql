@@ -21,21 +21,92 @@ Host: server.example.com
 */
 
 create or replace function test_private_clients()
-    return boolean as $$
+    returns boolean as $$
+    declare id uuid;
+    declare resp json;
     begin
-        -- secret not null
-        -- default secret exprity 5y
-        -- expiry cannot be before registration, for insert and update
-        -- for grant types
-            -- authorization_code -> response_type code
-            -- password, client_credentials, and refresh -> none
+        id := gen_random_uuid();
+        select api_client_create(
+                         '{https://service1.com}',
+                         'service1',
+                         'authorization_code',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         id::text,
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+        assert (select client_secret from api_clients where client_name = 'service1')
+                is not null, 'private client missing secret';
+        assert (select client_secret_expires_at from api_clients where client_name = 'service1')
+                between now() - interval '1 hour' and now() + interval '6 years',
+                'default secret expiry wrong';
+        begin
+            update api_clients set client_secret_expires_at = now() - interval '1 day'
+                where client_name = 'service1';
+        exception when assert_failure then
+            raise notice 'client secret cannot be updated to before registration date- as expected';
+        end;
+        assert (select response_types from api_clients where client_name = 'service1')
+                ='code', 'authorization_code has wrong response_type';
+        id := gen_random_uuid();
+        select api_client_create(
+                         '{https://service2.com}',
+                         'service2',
+                         'password',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         id::text,
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+        assert (select response_types from api_clients where client_name = 'service2')
+                = 'none', 'authorization_code has wrong response_type';
+        id := gen_random_uuid();
+        select api_client_create(
+                         '{https://service3.com}',
+                         'service3',
+                         'client_credentials',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         id::text,
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+        assert (select response_types from api_clients where client_name = 'service3')
+                = 'none', 'client_credentials has wrong response_type';
+        id := gen_random_uuid();
+        select api_client_create(
+                         '{https://service4.com}',
+                         'service4',
+                         'refresh_token',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         id::text,
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+        assert (select response_types from api_clients where client_name = 'service4')
+                = 'none', 'refresh grant has wrong response_type';
         return true;
     end;
 $$ language plpgsql;
 
 
 create or replace function test_public_clients()
-    return boolean as $$
+    returns boolean as $$
     begin
         -- no secret
         -- no secret expiry
@@ -49,7 +120,7 @@ $$ language plpgsql;
 
 
 create or replace function test_integrity_checks()
-    return boolean as $$
+    returns boolean as $$
     begin
         -- only supported grant types
         -- all arrays unique
@@ -67,7 +138,7 @@ create or replace function test_integrity_checks()
 $$ language plpgsql;
 
 create or replace function test_array_helper_funcs()
-    return boolean as $$
+    returns boolean as $$
     begin
         return true;
     end;
@@ -94,7 +165,6 @@ create or replace function test_client_authnz()
                          'v1',
                          't',
                          '{p11}') into resp;
-        raise info '%', resp;
         select client_id, client_secret from api_clients
             where client_name = 'TheBestService' into cid, cs;
         -- that it works
@@ -112,4 +182,5 @@ create or replace function test_client_authnz()
 $$ language plpgsql;
 
 delete from api_clients; --careful...
+select test_private_clients();
 select test_client_authnz();
