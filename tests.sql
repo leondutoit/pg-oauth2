@@ -20,36 +20,60 @@ Host: server.example.com
 }
 */
 
+create or replace function test_private_clients()
+    return boolean as $$
+    begin
+        -- secret not null
+        -- default secret exprity 5y
+        -- expiry cannot be before registration, for insert and update
+        -- for grant types
+            -- authorization_code -> response_type code
+            -- password, client_credentials, and refresh -> none
+        return true;
+    end;
+$$ language plpgsql;
 
--- TODO
--- only supported grant types
--- for private clients
-    -- secret not null
-    -- default secret exprity 5y
-    -- expiry cannot be before registration, for insert and update
-    -- for grant types
-        -- authorization_code -> response_type code
-        -- password, client_credentials, and refresh -> none
--- for public clients
-    -- no secret
-    -- no secret expiry
-    -- for implicit grant type (only one supported)
-        -- response type token
-    -- must have redirect uri
-    -- do not allow any other grant than implicit
--- all arrays unique
-    -- redirect_uris
-    -- grant_types
-    -- scopes
-    -- contacts
-    -- authorized_tentants
--- immutable columns
-    -- client_id
-    -- client_id_issued_at
--- url validation and http(s)
--- array helpers
--- client authentication
-delete from api_clients;
+
+create or replace function test_public_clients()
+    return boolean as $$
+    begin
+        -- no secret
+        -- no secret expiry
+        -- for implicit grant type (only one supported)
+            -- response type token
+        -- must have redirect uri
+        -- do not allow any other grant than implicit
+        return true;
+    end;
+$$ language plpgsql;
+
+
+create or replace function test_integrity_checks()
+    return boolean as $$
+    begin
+        -- only supported grant types
+        -- all arrays unique
+            -- redirect_uris
+            -- grant_types
+            -- scopes
+            -- contacts
+            -- authorized_tentants
+        -- immutable columns
+            -- client_id
+            -- client_id_issued_at
+        -- url validation and http(s)
+        return true;
+    end;
+$$ language plpgsql;
+
+create or replace function test_array_helper_funcs()
+    return boolean as $$
+    begin
+        return true;
+    end;
+$$ language plpgsql;
+
+
 create or replace function test_client_authnz()
     returns boolean as $$
     declare cid text;
@@ -82,8 +106,10 @@ create or replace function test_client_authnz()
         update api_clients set is_active = 'f';
         select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
         raise info 'status: %', status;
+        -- and all branches
         return true;
     end;
 $$ language plpgsql;
 
+delete from api_clients; --careful...
 select test_client_authnz();
