@@ -54,7 +54,7 @@ create or replace function test_private_clients()
                 ='code', 'authorization_code has wrong response_type';
         id := gen_random_uuid();
         select api_client_create(
-                         '{https://service2.com}',
+                         null,
                          'service2',
                          '{password}',
                          'https://logo.org',
@@ -70,7 +70,7 @@ create or replace function test_private_clients()
                 = 'none', 'authorization_code has wrong response_type';
         id := gen_random_uuid();
         select api_client_create(
-                         '{https://service3.com}',
+                         null,
                          'service3',
                          '{client_credentials}',
                          'https://logo.org',
@@ -86,7 +86,7 @@ create or replace function test_private_clients()
                 = 'none', 'client_credentials has wrong response_type';
         id := gen_random_uuid();
         select api_client_create(
-                         '{https://service4.com}',
+                         null,
                          'service4',
                          '{password,refresh_token}',
                          'https://logo.org',

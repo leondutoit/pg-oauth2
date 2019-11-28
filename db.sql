@@ -152,10 +152,7 @@ insert into supported_grant_types values ('implicit');
 insert into supported_grant_types values ('password');
 insert into supported_grant_types values ('client_credentials');
 insert into supported_grant_types values ('refresh_token');
-insert into supported_grant_types values ('difi'); -- custom
-insert into supported_grant_types values ('dataporten'); -- custom
-insert into supported_grant_types values ('elixir'); -- custom
--- ^ move to config?
+-- add password-mfa?
 
 
 drop function if exists validate_api_client_input() cascade;
