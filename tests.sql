@@ -20,6 +20,16 @@ Host: server.example.com
 }
 */
 
+/*
+
+Allowed grant type combinations:
+
+authorization_code, refresh_token
+implicit
+password, client_secret_basic, refresh_token
+
+*/
+
 create or replace function test_private_clients()
     returns boolean as $$
     declare id uuid;
@@ -54,10 +64,17 @@ create or replace function test_private_clients()
         begin
             update api_clients set client_secret_expires_at = now() - interval '1 day'
                 where client_name = 'service1';
+            raise exception using message = 'problem with client_secret_expires_at restrictions';
         exception when assert_failure then
             null;
-        -- test that the only additional grant and authorization_code flow
-        -- can get is the refresh_token
+        end;
+        begin
+            update api_clients set grant_types = array['authorization_code', 'implicit']
+                where client_name = 'service1';
+            raise exception using message = 'problem with authorization_code grant_type restrictions';
+        exception when assert_failure then
+            null;
+        end;
         -- password grant
         id := gen_random_uuid();
         select api_client_create(
@@ -75,6 +92,7 @@ create or replace function test_private_clients()
                          '{p11}') into resp;
         assert (select response_types from api_clients where client_name = 'service2')
                 = 'none', 'authorization_code has wrong response_type';
+        -- test grant type combinations
         id := gen_random_uuid();
         select api_client_create(
                          null,

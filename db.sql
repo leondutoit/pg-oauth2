@@ -174,6 +174,11 @@ create or replace function validate_api_client_input()
         perform assert_array_unique(NEW.scopes, 'scopes');
         perform assert_array_unique(NEW.contacts, 'contacts');
         perform assert_array_unique(NEW.authorized_tentants, 'authorized_tentants');
+        -- authorization_code flow client restrictions
+        if array['authorization_code'] <@ NEW.grant_types and cardinality(NEW.grant_types) > 1 then
+            assert cardinality(NEW.grant_types) = 2, 'authorization_code flow can only have refresh_token in addition';
+            assert array['refresh_token'] <@ NEW.grant_types, 'authorization_code flow can only have refresh_token in addition';
+        end if;
         restriction := 'public client are not allowed to have client secrets';
         if TG_OP = 'INSERT' then
             if array['implicit'] <@ NEW.grant_types then
@@ -182,8 +187,6 @@ create or replace function validate_api_client_input()
                 assert NEW.client_secret is null, restriction;
                 assert NEW.client_secret_expires_at is null, restriction;
             else
-                -- authorization_code flow
-                -- if more than one grant, only allow refresh_token
                 assert NEW.client_secret_expires_at > NEW.client_id_issued_at,
                     'expiry before registration makes no sense';
             end if;
@@ -198,8 +201,6 @@ create or replace function validate_api_client_input()
                 assert NEW.client_secret is null, restriction;
                 assert NEW.client_secret_expires_at is null, restriction;
             else
-                -- authorization_code flow
-                -- if more than one grant, only allow refresh_token
                 if NEW.client_secret_expires_at is not null then
                     assert NEW.client_secret_expires_at > OLD.client_id_issued_at,
                         'expiry before registration makes no sense';
