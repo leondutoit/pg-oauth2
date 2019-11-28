@@ -25,6 +25,9 @@ create or replace function test_private_clients()
     declare id uuid;
     declare resp json;
     begin
+        -- TODO
+        -- test token_endpoint_auth_method
+        -- test response_type
         id := gen_random_uuid();
         select api_client_create(
                          '{https://service1.com}',
@@ -138,6 +141,7 @@ create or replace function test_public_clients()
         assert red_uris is not null, 'public client does not have a redirect uri - it should';
         begin
             select api_client_grant_type_add(cid, 'refresh_token') into status;
+            raise info 'public cliennt grant rertrictions not working';
         exception when assert_failure then
             null;
         end;
@@ -148,8 +152,29 @@ $$ language plpgsql;
 
 create or replace function test_integrity_checks()
     returns boolean as $$
+    declare id uuid;
+    declare resp json;
     begin
         -- only supported grant types
+        id := gen_random_uuid();
+        begin
+            select api_client_create(
+                         '{https://service6.com}',
+                         'service6',
+                         '{nonsense}',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         id::text,
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+            raise notice 'grant type restrictions not working';
+        exception when assert_failure then
+            null;
+        end;
         -- all arrays unique
             -- redirect_uris
             -- grant_types
@@ -210,4 +235,6 @@ $$ language plpgsql;
 
 delete from api_clients; --careful...
 select test_private_clients();
+select test_public_clients();
+select test_integrity_checks();
 select test_client_authnz();

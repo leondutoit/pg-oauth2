@@ -245,6 +245,7 @@ create or replace function api_client_create(redirect_uris text[],
         */
         secret := gen_random_uuid()::text;
         secret_expiry := current_timestamp + '5 years';
+        response_type := 'none';
         if array['implicit'] <@ grant_types then
             token_endpoint_auth_method := 'none';
             secret := null;
@@ -256,8 +257,6 @@ create or replace function api_client_create(redirect_uris text[],
         end if;
         if array['authorization_code'] <@ grant_types  then
             response_type := 'code';
-        else
-            response_type := 'none';
         end if;
         new_name := client_name;
         insert into api_clients
@@ -310,7 +309,7 @@ create or replace function api_client_grant_type_add(client_id text, grant_type 
     declare num int;
     begin
         cid := $1;
-        execute format('select ac.client_id from api_clients ac
+        execute format('select count(*) from api_clients ac
                         where ac.client_id = $1') using cid into num;
         assert num = 1, 'client not found';
         select grant_types from api_clients where api_clients.client_id = cid into current;
@@ -328,7 +327,7 @@ create or replace function api_client_grant_type_remove(client_id text, grant_ty
     declare num int;
     begin
         cid := $1;
-        execute format('select ac.client_id from api_clients ac
+        execute format('select count(*) from api_clients ac
                         where ac.client_id = $1') using cid into num;
         assert num = 1, 'client not found';
         select array_remove(grant_types, grant_type) from api_clients
@@ -348,7 +347,7 @@ create or replace function api_client_tenant_add(client_id text, tenant text)
     declare num int;
     begin
         cid := $1;
-        execute format('select ac.client_id from api_clients ac
+        execute format('select count(*) from api_clients ac
                         where ac.client_id = $1') using cid into num;
         assert num = 1, 'client not found';
         select authorized_tentants from api_clients where api_clients.client_id = $1 into current;
@@ -367,7 +366,7 @@ create or replace function api_client_tenant_remove(client_id text, tenant text)
     declare num int;
     begin
         cid := $1;
-        execute format('select ac.client_id from api_clients ac
+        execute format('select count(*) from api_clients ac
                         where ac.client_id = $1') using cid into num;
         assert num = 1, 'client not found';
         select array_remove(authorized_tentants, tenant) from api_clients
