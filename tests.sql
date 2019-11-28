@@ -48,7 +48,7 @@ create or replace function test_private_clients()
             update api_clients set client_secret_expires_at = now() - interval '1 day'
                 where client_name = 'service1';
         exception when assert_failure then
-            raise notice 'client secret cannot be updated to before registration date- as expected';
+            null;
         end;
         assert (select response_types from api_clients where client_name = 'service1')
                 ='code', 'authorization_code has wrong response_type';
@@ -107,13 +107,40 @@ $$ language plpgsql;
 
 create or replace function test_public_clients()
     returns boolean as $$
+    declare id uuid;
+    declare resp json;
+    declare sec text;
+    declare sec_exp timestamptz;
+    declare resp_type text;
+    declare red_uris text[];
+    declare cid text;
+    declare status boolean;
     begin
-        -- no secret
-        -- no secret expiry
-        -- for implicit grant type (only one supported)
-            -- response type token
-        -- must have redirect uri
-        -- do not allow any other grant than implicit
+        id := gen_random_uuid();
+        select api_client_create(
+                         '{https://service5.com}',
+                         'service5',
+                         '{implicit}',
+                         'https://logo.org',
+                         '{leon@dutoit.com}',
+                         'https://tos.org',
+                         'https://policy.org',
+                         'https://jwks.org',
+                         id::text,
+                         'v1',
+                         't',
+                         '{p11}') into resp;
+        select client_id, client_secret, client_secret_expires_at, response_types, redirect_uris from api_clients
+            where client_name = 'service5' into cid, sec, sec_exp, resp_type, red_uris;
+        assert sec is null, 'public client has secret - should not';
+        assert sec_exp is null, 'public client has secret expiry - should not';
+        assert resp_type = 'token', 'public client has wrong response type';
+        assert red_uris is not null, 'public client does not have a redirect uri - it should';
+        begin
+            select api_client_grant_type_add(cid, 'refresh_token') into status;
+        exception when assert_failure then
+            null;
+        end;
         return true;
     end;
 $$ language plpgsql;
