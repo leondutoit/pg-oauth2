@@ -182,6 +182,8 @@ create or replace function validate_api_client_input()
                 assert NEW.client_secret is null, restriction;
                 assert NEW.client_secret_expires_at is null, restriction;
             else
+                -- authorization_code flow
+                -- if more than one grant, only allow refresh_token
                 assert NEW.client_secret_expires_at > NEW.client_id_issued_at,
                     'expiry before registration makes no sense';
             end if;
@@ -196,6 +198,8 @@ create or replace function validate_api_client_input()
                 assert NEW.client_secret is null, restriction;
                 assert NEW.client_secret_expires_at is null, restriction;
             else
+                -- authorization_code flow
+                -- if more than one grant, only allow refresh_token
                 if NEW.client_secret_expires_at is not null then
                     assert NEW.client_secret_expires_at > OLD.client_id_issued_at,
                         'expiry before registration makes no sense';

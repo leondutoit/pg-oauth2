@@ -24,10 +24,12 @@ create or replace function test_private_clients()
     returns boolean as $$
     declare id uuid;
     declare resp json;
+    declare sec text;
+    declare sec_exp timestamptz;
+    declare auth_method text;
+    declare resp_type text;
     begin
-        -- TODO
-        -- test token_endpoint_auth_method
-        -- test response_type
+        -- authorization_code grant
         id := gen_random_uuid();
         select api_client_create(
                          '{https://service1.com}',
@@ -42,19 +44,21 @@ create or replace function test_private_clients()
                          'v1',
                          't',
                          '{p11}') into resp;
-        assert (select client_secret from api_clients where client_name = 'service1')
-                is not null, 'private client missing secret';
-        assert (select client_secret_expires_at from api_clients where client_name = 'service1')
-                between now() - interval '1 hour' and now() + interval '6 years',
-                'default secret expiry wrong';
+        select client_secret, client_secret_expires_at,  token_endpoint_auth_method, response_types
+            from api_clients where client_name = 'service1'
+            into sec, sec_exp, auth_method, resp_type;
+        assert sec is not null, 'private client missing secret';
+        assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
+        assert auth_method = 'client_secret_basic', 'private client auth method issue';
+        assert resp_type = 'code', 'private client response type issue';
         begin
             update api_clients set client_secret_expires_at = now() - interval '1 day'
                 where client_name = 'service1';
         exception when assert_failure then
             null;
-        end;
-        assert (select response_types from api_clients where client_name = 'service1')
-                ='code', 'authorization_code has wrong response_type';
+        -- test that the only additional grant and authorization_code flow
+        -- can get is the refresh_token
+        -- password grant
         id := gen_random_uuid();
         select api_client_create(
                          null,
@@ -141,9 +145,11 @@ create or replace function test_public_clients()
         assert red_uris is not null, 'public client does not have a redirect uri - it should';
         begin
             select api_client_grant_type_add(cid, 'refresh_token') into status;
-            raise info 'public cliennt grant rertrictions not working';
+            raise info 'public client grant restrictions not working';
         exception when assert_failure then
             null;
+        -- try to set secret
+        -- try to set secret expiry
         end;
         return true;
     end;
@@ -155,7 +161,6 @@ create or replace function test_integrity_checks()
     declare id uuid;
     declare resp json;
     begin
-        -- only supported grant types
         id := gen_random_uuid();
         begin
             select api_client_create(
