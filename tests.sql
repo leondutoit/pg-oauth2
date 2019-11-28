@@ -29,7 +29,7 @@ create or replace function test_private_clients()
         select api_client_create(
                          '{https://service1.com}',
                          'service1',
-                         'authorization_code',
+                         '{authorization_code}',
                          'https://logo.org',
                          '{leon@dutoit.com}',
                          'https://tos.org',
@@ -56,7 +56,7 @@ create or replace function test_private_clients()
         select api_client_create(
                          '{https://service2.com}',
                          'service2',
-                         'password',
+                         '{password}',
                          'https://logo.org',
                          '{leon@dutoit.com}',
                          'https://tos.org',
@@ -72,7 +72,7 @@ create or replace function test_private_clients()
         select api_client_create(
                          '{https://service3.com}',
                          'service3',
-                         'client_credentials',
+                         '{client_credentials}',
                          'https://logo.org',
                          '{leon@dutoit.com}',
                          'https://tos.org',
@@ -88,7 +88,7 @@ create or replace function test_private_clients()
         select api_client_create(
                          '{https://service4.com}',
                          'service4',
-                         'refresh_token',
+                         '{password,refresh_token}',
                          'https://logo.org',
                          '{leon@dutoit.com}',
                          'https://tos.org',
@@ -155,7 +155,7 @@ create or replace function test_client_authnz()
         select api_client_create(
                          '{https://my-average-client.com}',
                          'TheBestService',
-                         'implicit',
+                         '{implicit}',
                          'https://logo.org',
                          '{leon@dutoit.com}',
                          'https://tos.org',

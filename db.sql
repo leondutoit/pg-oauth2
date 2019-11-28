@@ -214,7 +214,7 @@ create trigger api_clients_input_validation before insert or update on api_clien
 
 create or replace function api_client_create(redirect_uris text[],
                                              client_name text,
-                                             grant_type text,
+                                             grant_types text[],
                                              logo_uri text,
                                              contacts text[],
                                              tos_uri text,
@@ -248,7 +248,7 @@ create or replace function api_client_create(redirect_uris text[],
         */
         secret := gen_random_uuid()::text;
         secret_expiry := current_timestamp + '5 years';
-        if grant_type = 'implicit' then
+        if array['implicit'] <@ grant_types then
             token_endpoint_auth_method := 'none';
             secret := null;
             secret_expiry := null;
@@ -257,7 +257,7 @@ create or replace function api_client_create(redirect_uris text[],
             token_endpoint_auth_method := 'client_secret_basic';
             -- ^ opinionated choice: do not want POST
         end if;
-        if grant_type = 'authorization_code' then
+        if array['authorization_code'] <@ grant_types  then
             response_type := 'code';
         else
             response_type := 'none';
@@ -273,7 +273,7 @@ create or replace function api_client_create(redirect_uris text[],
         values
             (secret, secret_expiry,
              redirect_uris, token_endpoint_auth_method,
-             client_name, array[grant_type], response_type,
+             client_name, grant_types, response_type,
              logo_uri, contacts, tos_uri, policy_uri,
              jwks_uri, software_id::uuid, software_version,
              is_active, authorized_tenants, client_extra_metadata);
