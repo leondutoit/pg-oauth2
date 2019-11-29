@@ -60,7 +60,7 @@ create or replace function test_private_clients()
         assert sec is not null, 'private client missing secret';
         assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
         assert auth_method = 'client_secret_basic', 'private client auth method issue';
-        assert resp_type = 'code', 'private client response type issue';
+        assert resp_type = 'code', 'private client response type issue - authorization_code grant';
         begin
             update api_clients set client_secret_expires_at = now() - interval '1 day'
                 where client_name = 'service1';
@@ -90,8 +90,13 @@ create or replace function test_private_clients()
                          'v1',
                          't',
                          '{p11}') into resp;
-        assert (select response_types from api_clients where client_name = 'service2')
-                = 'none', 'authorization_code has wrong response_type';
+        select client_secret, client_secret_expires_at,  token_endpoint_auth_method, response_types
+            from api_clients where client_name = 'service2'
+            into sec, sec_exp, auth_method, resp_type;
+        assert sec is not null, 'private client missing secret';
+        assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
+        assert auth_method = 'client_secret_basic', 'private client auth method issue';
+        assert resp_type = 'none', 'private client response type issue - password grant';
         -- test grant type combinations
         id := gen_random_uuid();
         select api_client_create(
@@ -107,8 +112,13 @@ create or replace function test_private_clients()
                          'v1',
                          't',
                          '{p11}') into resp;
-        assert (select response_types from api_clients where client_name = 'service3')
-                = 'none', 'client_credentials has wrong response_type';
+        select client_secret, client_secret_expires_at,  token_endpoint_auth_method, response_types
+            from api_clients where client_name = 'service3'
+            into sec, sec_exp, auth_method, resp_type;
+        assert sec is not null, 'private client missing secret';
+        assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
+        assert auth_method = 'client_secret_basic', 'private client auth method issue';
+        assert resp_type = 'code', 'private client response type issue';
         id := gen_random_uuid();
         select api_client_create(
                          null,
