@@ -242,7 +242,13 @@ create or replace function test_integrity_checks()
         exception when assert_failure then
             null;
         end;
-        -- url validation and http(s)
+        -- url validation
+        begin
+            update api_clients set redirect_uris = '{ftp://r.f}' where client_name = 'service5';
+            raise exception using message = 'redirect url validation issue';
+        exception when assert_failure then
+            null;
+        end;
         return true;
     end;
 $$ language plpgsql;
@@ -297,4 +303,5 @@ delete from api_clients; --careful...
 select test_private_clients();
 select test_public_clients();
 select test_integrity_checks();
+select test_array_helper_funcs();
 select test_client_authnz();
