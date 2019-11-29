@@ -194,7 +194,7 @@ create or replace function test_integrity_checks()
                          'v1',
                          't',
                          '{p11}') into resp;
-            raise notice 'grant type restrictions not working';
+            raise exception using message = 'grant type restrictions not working';
         exception when assert_failure then
             null;
         end;
