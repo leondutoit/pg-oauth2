@@ -156,8 +156,18 @@ create or replace function test_public_clients()
             raise info 'public client grant restrictions not working';
         exception when assert_failure then
             null;
-        -- try to set secret
-        -- try to set secret expiry
+        end;
+        begin
+            update api_clients set client_secret = 'bla' where client_name = 'service5';
+            raise exception using message = 'public clients can set secret - should not';
+        exception when assert_failure then
+            null;
+        end;
+        begin
+            update api_clients set client_secret_expires_at = now() where client_name = 'service5';
+            raise exception using message = 'public clients can set secret expiry - should not';
+        exception when assert_failure then
+            null;
         end;
         return true;
     end;
