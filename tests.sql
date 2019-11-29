@@ -97,7 +97,7 @@ create or replace function test_private_clients()
         assert sec is not null, 'private client missing secret';
         assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
         assert auth_method = 'client_secret_basic', 'private client auth method issue';
-        assert resp_type = 'code', 'private client response type issue';
+        assert resp_type = 'none', 'private client response type issue';
         -- test grant type combinations
         id := gen_random_uuid();
         select api_client_create(
@@ -230,8 +230,18 @@ create or replace function test_integrity_checks()
             null;
         end;
         -- immutable columns
-            -- client_id
-            -- client_id_issued_at
+        begin
+            update api_clients set client_id = 'random-thing' where client_name = 'service5';
+            raise exception using message = 'possible to change client_id - should not be';
+        exception when assert_failure then
+            null;
+        end;
+        begin
+            update api_clients set client_id_issued_at = now() where client_name = 'service5';
+            raise exception using message = 'possible to change client_id_issued_at - should not be';
+        exception when assert_failure then
+            null;
+        end;
         -- url validation and http(s)
         return true;
     end;
