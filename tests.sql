@@ -97,7 +97,7 @@ create or replace function test_private_clients()
         assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
         assert auth_method = 'client_secret_basic', 'private client auth method issue';
         assert resp_type = 'none', 'private client response type issue - password grant';
-        -- test grant type combinations
+        -- client_credentials
         id := gen_random_uuid();
         select api_client_create(
                          null,
@@ -119,6 +119,7 @@ create or replace function test_private_clients()
         assert sec_exp between now() - interval '1 hour' and now() + interval '6 years', 'default secret expiry wrong';
         assert auth_method = 'client_secret_basic', 'private client auth method issue';
         assert resp_type = 'code', 'private client response type issue';
+        -- test grant type combinations
         id := gen_random_uuid();
         select api_client_create(
                          null,
