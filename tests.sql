@@ -199,11 +199,36 @@ create or replace function test_integrity_checks()
             null;
         end;
         -- all arrays unique
-            -- redirect_uris
-            -- grant_types
-            -- scopes
-            -- contacts
-            -- authorized_tentants
+        begin
+            update api_clients set redirect_uris = '{https://a.c,https://a.c}' where client_name = 'service5';
+            raise exception using message = 'redirect_uris not ensured to be unique';
+        exception when assert_failure then
+            null;
+        end;
+        begin
+            update api_clients set grant_types = '{password,password}' where client_name = 'service5';
+            raise exception using message = 'grant_types not ensured to be unique';
+        exception when assert_failure then
+            null;
+        end;
+        begin
+            update api_clients set scopes = '{bla,bla}' where client_name = 'service5';
+            raise exception using message = 'scopes not ensured to be unique';
+        exception when assert_failure then
+            null;
+        end;
+        begin
+            update api_clients set contacts = '{l@f.g,l@f.g}' where client_name = 'service5';
+            raise exception using message = 'contacts not ensured to be unique';
+        exception when assert_failure then
+            null;
+        end;
+        begin
+            update api_clients set authorized_tentants = '{p1,p1}' where client_name = 'service5';
+            raise exception using message = 'authorized_tentants not ensured to be unique';
+        exception when assert_failure then
+            null;
+        end;
         -- immutable columns
             -- client_id
             -- client_id_issued_at
@@ -211,6 +236,7 @@ create or replace function test_integrity_checks()
         return true;
     end;
 $$ language plpgsql;
+
 
 create or replace function test_array_helper_funcs()
     returns boolean as $$
@@ -255,6 +281,7 @@ create or replace function test_client_authnz()
         return true;
     end;
 $$ language plpgsql;
+
 
 delete from api_clients; --careful...
 select test_private_clients();
