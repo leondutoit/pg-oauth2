@@ -313,9 +313,16 @@ create or replace function test_client_authnz()
         select api_client_authnz(cid, cs, 'p12', 'password', null) into status;
         assert status->>'status' = 'false', 'authentication should fail when tenant access is not authorized';
         -- if all keyword is in tenant list, grant with any tenant identifier
+        -- todo
         -- no access to grant type
+        select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
+        assert status->>'status' = 'false', 'authentication should fail when client not granted auth type';
         -- no access to scope (if set for client)
-        -- when scope not set, that it doesnt matter
+        update api_clients set scopes = '{files}' where client_name = 'service2';
+        select api_client_authnz(cid, cs, 'p11', 'password', null) into status;
+        assert status->>'status' = 'false', 'authentication should fail if scope is specified and not met';
+        select api_client_authnz(cid, cs, 'p11', 'password', 'iam') into status;
+        assert status->>'status' = 'false', 'authentication should fail if scope is specified and not met';
         -- client secret correct but expired
         -- ^ difficult to test without a long-running test (given the table constraints)
         -- leaving it out of these tests, but it works
