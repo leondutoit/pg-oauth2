@@ -153,7 +153,7 @@ insert into supported_grant_types values ('implicit');
 insert into supported_grant_types values ('password');
 insert into supported_grant_types values ('client_credentials');
 insert into supported_grant_types values ('refresh_token');
--- add password-mfa?
+
 
 drop function if exists validate_api_client_input() cascade;
 create or replace function validate_api_client_input()

@@ -8,6 +8,7 @@ DB tools for implementing OAuth2.0 authorization servers.
 Set up the db, run the tests:
 ```bash
 psql -U $DBOWNER -d $DBNAME -f db.sql
+# note: running the tests will remove/insert data
 psql -U $DBOWNER -d $DBNAME -f tests.sql
 ```
 
@@ -44,6 +45,22 @@ api_client_authnz(client_id text,
 ```
 
 For the details of the `api_clients` table, do `\d+ api_clients` in the psql shell. For example usage of the SQL API see `tests.sql`.
+
+## Customisation
+
+By default the library supports these grants:
+
+- authorization_code
+- implicit
+- password
+- client_credentials
+- refresh_token
+
+If you want to add more grants then do:
+
+```sql
+insert into supported_grant_types values ('your-grant-name-here');
+```
 
 ## License
 

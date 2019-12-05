@@ -336,7 +336,7 @@ create or replace function test_client_authnz()
 $$ language plpgsql;
 
 
-delete from api_clients; --careful...
+delete from api_clients where client_name in ('service1', 'service2', 'service3', 'service4', 'service5');
 select test_private_clients();
 select test_public_clients();
 select test_integrity_checks();
