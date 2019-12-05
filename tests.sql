@@ -292,32 +292,33 @@ create or replace function test_client_authnz()
     declare cs text;
     declare resp json;
     declare status json;
+    declare exp timestamptz;
     begin
-        select api_client_create(
-                         '{https://my-average-client.com}',
-                         'TheBestService',
-                         '{implicit}',
-                         'https://logo.org',
-                         '{leon@dutoit.com}',
-                         'https://tos.org',
-                         'https://policy.org',
-                         'https://jwks.org',
-                         '2de1b97e-d32a-48a9-8a9f-cc0c29936afb',
-                         'v1',
-                         't',
-                         '{p11}') into resp;
         select client_id, client_secret from api_clients
-            where client_name = 'TheBestService' into cid, cs;
-        -- that it works
-        select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
-        raise info 'status: %', status;
+            where client_name = 'service2' into cid, cs;
+        -- correct credentials
+        select api_client_authnz(cid, cs, 'p11', 'password', null) into status;
+        assert status->>'status' = 'true', 'authentication does not work with correct details';
+        -- wrong client id, correct secret
         select api_client_authnz(';drop table api_clients;', cs, 'p11', 'implicit', null) into status;
-        raise info 'status: %', status;
-        -- test that if client is inactive cannot authenticate
-        update api_clients set is_active = 'f';
-        select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
-        raise info 'status: %', status;
-        -- and all branches
+        assert status->>'status' = 'false', 'authentication should fail on non-existing client id';
+        -- correct client id, wrong secret
+        select api_client_authnz(cid, 'bla-bla', 'p11', 'password', null) into status;
+        assert status->>'status' = 'false', 'authentication should fail on wrong client secret';
+        -- active status
+        update api_clients set is_active = 'f' where client_name = 'service2';
+        select api_client_authnz(cid, cs, 'p11', 'password', null) into status;
+        update api_clients set is_active = 't' where client_name = 'service2';
+        -- does not have access to tenant
+        select api_client_authnz(cid, cs, 'p12', 'password', null) into status;
+        assert status->>'status' = 'false', 'authentication should fail when tenant access is not authorized';
+        -- if all keyword is in tenant list, grant with any tenant identifier
+        -- no access to grant type
+        -- no access to scope (if set for client)
+        -- when scope not set, that it doesnt matter
+        -- client secret correct but expired
+        -- ^ difficult to test without a long-running test (given the table constraints)
+        -- leaving it out of these tests, but it works
         return true;
     end;
 $$ language plpgsql;

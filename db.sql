@@ -34,7 +34,7 @@ create table if not exists api_clients(
         check (token_endpoint_auth_method in ('none', 'client_secret_post', 'client_secret_basic')),
     grant_types text[] not null,
     response_types text not null check (response_types in ('code', 'token', 'none')),
-    client_name text not null unique,
+    client_name text not null unique, -- need to handle this in the API somehow
     client_uri text,
     logo_uri text,
     scopes text[],
@@ -459,6 +459,7 @@ create or replace function api_client_authnz(client_id text,
             msg := 'authentication succesfull';
             status := true;
         end if;
+        -- address the all keyword
         if (not array[tenant] <@ tenants and status in (true, false)) then
             msg := 'authorization failed: tenant access ';
             status := false;
