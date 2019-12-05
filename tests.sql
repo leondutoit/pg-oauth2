@@ -292,7 +292,7 @@ create or replace function test_client_authnz()
     declare cs text;
     declare resp json;
     declare status json;
-    declare exp timestamptz;
+    declare ans boolean;
     begin
         select client_id, client_secret from api_clients
             where client_name = 'service2' into cid, cs;
@@ -313,7 +313,12 @@ create or replace function test_client_authnz()
         select api_client_authnz(cid, cs, 'p12', 'password', null) into status;
         assert status->>'status' = 'false', 'authentication should fail when tenant access is not authorized';
         -- if all keyword is in tenant list, grant with any tenant identifier
-        -- todo
+        select api_client_tenant_add(cid, 'all') into ans;
+        select api_client_authnz(cid, cs, 'p12', 'password', null) into status;
+        assert status->>'status' = 'true', 'authentication should succeed when tenant access is granted by keyword: all';
+        select api_client_tenant_remove(cid, 'all') into ans;
+        select api_client_authnz(cid, cs, 'p12', 'password', null) into status;
+        assert status->>'status' = 'false', 'authentication should fail when tenant access is not authorized';
         -- no access to grant type
         select api_client_authnz(cid, cs, 'p11', 'implicit', null) into status;
         assert status->>'status' = 'false', 'authentication should fail when client not granted auth type';

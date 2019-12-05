@@ -97,7 +97,8 @@ comment on column api_clients.is_active
 is 'Boolean flag for activation/deactivation of clients by API admins';
 comment on column api_clients.authorized_tentants
 is 'List of tenant identifiers specifying which API tenant the client
-can access';
+can access - NB! the tentant named "all" is a keyword which grants access
+to all tenants';
 comment on column api_clients.client_extra_metadata
 is 'Unstructured field for extensible client metadata';
 
@@ -153,7 +154,6 @@ insert into supported_grant_types values ('password');
 insert into supported_grant_types values ('client_credentials');
 insert into supported_grant_types values ('refresh_token');
 -- add password-mfa?
-
 
 drop function if exists validate_api_client_input() cascade;
 create or replace function validate_api_client_input()
@@ -459,11 +459,10 @@ create or replace function api_client_authnz(client_id text,
             msg := 'authentication succesfull';
             status := true;
         end if;
-        -- address the all keyword
-        if (not array[tenant] <@ tenants and status in (true, false)) then
+        if (not (array[tenant] <@ tenants or array['all'] <@ tenants) and status in (true, false)) then
             msg := 'authorization failed: tenant access ';
             status := false;
-        elsif (array[tenant] <@ tenants and status in (true, true)) then
+        elsif ((array[tenant] <@ tenants or array['all'] <@ tenants) and status in (true, true)) then
             msg = 'authorization succesfull';
             status := true;
         end if;
