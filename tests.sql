@@ -178,6 +178,7 @@ create or replace function test_integrity_checks()
     returns boolean as $$
     declare id uuid;
     declare resp json;
+    declare ans text;
     begin
         id := gen_random_uuid();
         begin
@@ -256,7 +257,30 @@ $$ language plpgsql;
 
 create or replace function test_array_helper_funcs()
     returns boolean as $$
+    declare ans boolean;
+    declare cid text;
     begin
+        select client_id from api_clients where client_name = 'service3' into cid;
+        select api_client_grant_type_add(cid, 'password') into ans;
+        assert array['password'] <@
+                (select grant_types from api_clients
+                 where client_name = 'service3'),
+                'api_client_grant_type_add does not add grant';
+        select api_client_grant_type_remove(cid, 'password') into ans;
+        assert (array['password'] <@
+                (select grant_types from api_clients
+                 where client_name = 'service3')) = 'f',
+                'api_client_grant_type_remove does not remove grant';
+        select api_client_tenant_add(cid, 'all') into ans;
+        assert array['all'] <@
+                (select authorized_tentants from api_clients
+                 where client_name = 'service3'),
+                'api_client_tenant_add does not add tenant';
+        select api_client_tenant_remove(cid, 'all') into ans;
+        assert (array['all'] <@
+                (select authorized_tentants from api_clients
+                 where client_name = 'service3')) = 'f',
+                'api_client_tenant_remove does not remove grant';
         return true;
     end;
 $$ language plpgsql;
